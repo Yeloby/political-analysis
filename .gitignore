@@ -12,3 +12,6 @@ build/
 cache/
 data/
 exports/
+
+# Generated charts
+population-*.png

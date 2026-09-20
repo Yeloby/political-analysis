@@ -1,6 +1,7 @@
 import argparse
 
 from .analysis import filter_since, summarize_series
+from .charts import population_chart
 from .providers.norway.ssb import SsbClient, municipality_population
 
 
@@ -28,6 +29,11 @@ def main():
         type=int,
         help="Vis befolkningsutvikling fra dette året",
     )
+    population.add_argument(
+        "--chart",
+        action="store_true",
+        help="Lagre utviklingen som PNG-graf",
+    )
 
     compare = sub.add_parser(
         "compare",
@@ -42,6 +48,11 @@ def main():
         "--since",
         type=int,
         help="Sammenlign fra dette året",
+    )
+    compare.add_argument(
+        "--chart",
+        action="store_true",
+        help="Lagre sammenligningen som PNG-graf",
     )
 
     args = parser.parse_args()
@@ -111,6 +122,20 @@ def main():
             "Metode: SSBs aggregerte kommuneserie "
             "for sammenhengende historiske tall."
         )
+
+        if args.chart:
+            slug = args.place.casefold().replace(" ", "-")
+            output = (
+                f"population-{slug}-"
+                f"{first_year}-{last_year}.png"
+            )
+            population_chart(
+                [(municipality.name, frame)],
+                output,
+                f"Befolkningsutvikling i {municipality.name}",
+            )
+            print(f"Graf: {output}")
+
         print()
 
         return 0
@@ -120,6 +145,7 @@ def main():
             parser.error("Oppgi minst to kommuner som skal sammenlignes.")
 
         results = []
+        chart_series = []
 
         for place in args.places:
             try:
@@ -143,6 +169,10 @@ def main():
             percent_change = summary.percent_change
             first_year = summary.first_year
             last_year = summary.last_year
+
+            chart_series.append(
+                (municipality.name, frame)
+            )
 
             results.append(
                 (
@@ -205,6 +235,29 @@ def main():
             "Metode: SSBs aggregerte kommuneserier "
             "for sammenhengende historiske tall."
         )
+
+        if args.chart:
+            years = {
+                (result[1], result[2])
+                for result in results
+            }
+
+            if len(years) == 1:
+                chart_first, chart_last = next(iter(years))
+                output = (
+                    f"population-comparison-"
+                    f"{chart_first}-{chart_last}.png"
+                )
+            else:
+                output = "population-comparison.png"
+
+            population_chart(
+                chart_series,
+                output,
+                "Befolkningsutvikling",
+            )
+            print(f"Graf: {output}")
+
         print()
 
         return 0
