@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "political-analysis"
+version = "0.1.0"
+description = "Open-source analysis tool for Norwegian public data"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+  "httpx>=0.27",
+  "pandas>=2.2",
+  "duckdb>=1.1",
+  "platformdirs>=4.3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "ruff>=0.6",
+]
+
+[project.scripts]
+political-analysis = "political_analysis.cli:main"
+pol = "political_analysis.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
