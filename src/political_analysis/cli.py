@@ -22,6 +22,11 @@ def main():
         help="Vis befolkningsutvikling",
     )
     population.add_argument("place")
+    population.add_argument(
+        "--since",
+        type=int,
+        help="Vis befolkningsutvikling fra dette året",
+    )
 
     args = parser.parse_args()
 
@@ -39,6 +44,41 @@ def main():
         except ValueError as error:
             parser.error(str(error))
 
+        if args.since is not None:
+            years = frame["Tid_code"].astype(int)
+            frame = frame[years >= args.since]
+
+            if frame.empty:
+                parser.error(
+                    f"Ingen befolkningsdata fra {args.since}."
+                )
+
+        first = frame.iloc[0]
+        last = frame.iloc[-1]
+
+        first_value = int(first["value"])
+        last_value = int(last["value"])
+        change = last_value - first_value
+        percent_change = (change / first_value) * 100
+
+        first_year = first.get("Tid", first.get("Tid_code", ""))
+        last_year = last.get("Tid", last.get("Tid_code", ""))
+
+        print()
+        print(
+            f"{municipality.name}: "
+            f"{first_value:,} → {last_value:,} "
+            f"({first_year}–{last_year})"
+            .replace(",", " ")
+        )
+        change_text = f"{change:+,}".replace(",", " ")
+        percent_text = f"{percent_change:+.1f}".replace(".", ",")
+
+        print(
+            f"Endring: {change_text} personer "
+            f"({percent_text} %)"
+        )
+
         print()
         print(f"Befolkningsutvikling i {municipality.name}")
         print("=" * 35)
@@ -54,6 +94,7 @@ def main():
         print("Kilde: Statistisk sentralbyrå")
         print("Tabell: 07459")
         print(f"Kommune: {municipality.name} ({municipality.code})")
+        print(f"Periode: {first_year}–{last_year}")
         print(
             "Metode: SSBs aggregerte kommuneserie "
             "for sammenhengende historiske tall."
