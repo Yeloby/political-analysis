@@ -17,6 +17,7 @@ class Dataset:
     measures: tuple[str, ...]
     definition: str
     limitations: tuple[str, ...] = ()
+    aliases: tuple[str, ...] = ()
 
 
 DATASETS = (
@@ -36,6 +37,7 @@ DATASETS = (
         period="1986–",
         measures=("population",),
         definition="Folkemengde etter SSBs kommunestatistikk.",
+        aliases=("befolkning", "folketall", "innbyggere"),
     ),
     Dataset(
         id="valg-municipality-results",
@@ -61,6 +63,7 @@ DATASETS = (
                 "valgdata."
             ),
         ),
+        aliases=("kommunevalg", "valgresultat", "valgresultater"),
     ),
     Dataset(
         id="nav-registered-unemployed",
@@ -84,6 +87,13 @@ DATASETS = (
             "Serien kan inneholde brudd i statistikken.",
             "Må ikke forveksles med arbeidsledighet målt i AKU.",
         ),
+        aliases=(
+            "arbeidsledighet",
+            "arbeidsledig",
+            "arbeidsledige",
+            "ledighet",
+            "helt ledige",
+        ),
     ),
 )
 
@@ -92,19 +102,64 @@ def datasets() -> tuple[Dataset, ...]:
     return DATASETS
 
 
-def find_datasets(query: str) -> list[Dataset]:
-    wanted = query.casefold().strip()
+def _search_forms(word: str) -> set[str]:
+    forms = {word}
 
-    if not wanted:
+    for suffix in ("ene", "en", "et", "a"):
+        if word.endswith(suffix) and len(word) > len(suffix) + 3:
+            forms.add(word[:-len(suffix)])
+
+    return forms
+
+
+def find_datasets(query: str) -> list[Dataset]:
+    words = set()
+
+    for raw_word in query.casefold().split():
+        word = raw_word.strip(" ,.?!:;()")
+
+        if len(word) >= 3:
+            words.update(_search_forms(word))
+
+    if not words:
         return list(DATASETS)
+
+    scored = []
+
+    for dataset in DATASETS:
+        searchable = " ".join(
+            [
+                dataset.title,
+                dataset.topic,
+                dataset.description,
+                dataset.provider,
+                dataset.source,
+                dataset.definition,
+                *dataset.dimensions,
+                *dataset.measures,
+                *dataset.aliases,
+            ]
+        ).casefold()
+
+        score = sum(
+            1
+            for word in words
+            if word in searchable
+        )
+
+        if score:
+            scored.append((score, dataset))
+
+    scored.sort(
+        key=lambda item: (
+            -item[0],
+            item[1].title.casefold(),
+        )
+    )
 
     return [
         dataset
-        for dataset in DATASETS
-        if wanted in dataset.title.casefold()
-        or wanted in dataset.topic.casefold()
-        or wanted in dataset.description.casefold()
-        or wanted in dataset.provider.casefold()
+        for _, dataset in scored
     ]
 
 

@@ -49,3 +49,25 @@ def test_dataset_metadata():
     assert dataset.period == "1995–2025"
     assert dataset.measures == ("unemployed", "percent")
     assert dataset.limitations
+
+
+def test_find_dataset_from_natural_language():
+    results = find_datasets(
+        "Hvordan har arbeidsledigheten i Trondheim utviklet seg?"
+    )
+
+    assert results
+    assert results[0].id == "nav-registered-unemployed"
+
+
+def test_find_dataset_from_population_question():
+    results = find_datasets(
+        "Vis befolkningen i Trondheim"
+    )
+
+    assert results
+    assert results[0].id == "ssb-07459-population"
+
+
+def test_catalog_search_returns_no_irrelevant_match():
+    assert find_datasets("bananer romskip pingvin") == []
