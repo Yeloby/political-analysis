@@ -95,6 +95,64 @@ def _clean_place(value: str) -> str:
     return value.strip()
 
 
+
+@dataclass(frozen=True)
+class UnemploymentQuestion:
+    municipality: str
+    since: int | None = None
+
+
+def parse_unemployment_question(
+    text: str,
+) -> UnemploymentQuestion:
+    text = " ".join(text.strip().split())
+
+    year_match = re.search(
+        r"\b(?:siden|fra)\s+(\d{4})\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    since = int(year_match.group(1)) if year_match else None
+
+    cleaned = re.sub(
+        r"\s+(?:siden|fra)\s+\d{4}\b",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip(" .?")
+
+    patterns = [
+        (
+            r"^hvordan\s+har\s+arbeidsledigheten\s+i\s+"
+            r"(.+?)\s+utviklet\s+seg$"
+        ),
+        (
+            r"^vis\s+arbeidsledigheten\s+i\s+(.+)$"
+        ),
+        (
+            r"^arbeidsledigheten\s+i\s+(.+)$"
+        ),
+    ]
+
+    for pattern in patterns:
+        match = re.search(
+            pattern,
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+
+        if match:
+            return UnemploymentQuestion(
+                municipality=match.group(1).strip(" ,.?!"),
+                since=since,
+            )
+
+    raise ValueError(
+        "Jeg forstår foreløpig arbeidsledighetsspørsmål som "
+        "«Hvordan har arbeidsledigheten i Trondheim "
+        "utviklet seg siden 2015?»."
+    )
+
 @dataclass(frozen=True)
 class ElectionQuestion:
     party_code: str
@@ -366,6 +424,7 @@ def parse_election_question(text: str) -> ElectionQuestion:
 
 def parse_question(text: str):
     parsers = [
+        parse_unemployment_question,
         parse_election_comparison_question,
         parse_municipal_election_comparison_question,
         parse_municipal_election_question,

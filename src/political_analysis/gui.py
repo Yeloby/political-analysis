@@ -1,4 +1,5 @@
 import gi
+import pandas as pd
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("GdkPixbuf", "2.0")
@@ -10,6 +11,7 @@ from .providers.norway.elections import (
     municipality_party_history,
     storting_party_history,
 )
+from .providers.norway.nav import municipality_unemployment_since
 from .providers.norway.ssb import municipality_population
 from .questions import (
     ElectionComparisonQuestion,
@@ -17,6 +19,7 @@ from .questions import (
     MunicipalElectionComparisonQuestion,
     MunicipalElectionQuestion,
     PopulationQuestion,
+    UnemploymentQuestion,
     parse_question,
 )
 
@@ -191,6 +194,10 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             self.status.set_text(str(error))
             return
 
+        if isinstance(question, UnemploymentQuestion):
+            self.on_unemployment_question(question)
+            return
+
         if isinstance(question, PopulationQuestion):
             self.place.set_text(question.place)
             self.compare_place.set_text(
@@ -222,6 +229,109 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         if isinstance(question, ElectionQuestion):
             self.on_election_question(question)
             return
+
+    def on_unemployment_question(self, question):
+        import matplotlib.pyplot as plt
+
+        self.status.set_text("Henter NAV-data …")
+
+        since = question.since
+        if since is None:
+            since = 1995
+
+        try:
+            frame = municipality_unemployment_since(
+                question.municipality,
+                since,
+            )
+        except Exception as error:  # noqa: BLE001
+            self.status.set_text(str(error))
+            return
+
+        first = frame.iloc[0]
+        last = frame.iloc[-1]
+
+        first_period = (
+            f"{int(first['year'])}-{int(first['month']):02d}"
+        )
+        last_period = (
+            f"{int(last['year'])}-{int(last['month']):02d}"
+        )
+
+        latest_unemployed = int(last["unemployed"])
+        latest_percent = last["percent"]
+
+        if latest_percent is not None and not pd.isna(
+            latest_percent
+        ):
+            percent_text = (
+                f"{float(latest_percent):.1f}".replace(".", ",")
+                + " %"
+            )
+        else:
+            percent_text = "ikke oppgitt"
+
+        self.status.set_text(
+            f"Arbeidsledighet · {question.municipality} · "
+            f"{first_period}–{last_period}"
+        )
+
+        latest_text = f"{latest_unemployed:,}".replace(",", " ")
+
+        self.result.set_markup(
+            f"<b>Registrerte helt ledige i "
+            f"{question.municipality}</b>\n"
+            f"<span size='x-large' weight='bold'>"
+            f"{latest_text}</span>\n"
+            f"Andel av arbeidsstyrken: {percent_text}\n\n"
+            f"Siste observasjon: {last_period}\n"
+            f"Metode: NAVs månedlige kommunestatistikk "
+            f"for registrerte helt ledige."
+        )
+
+        self.current_series = [
+            (question.municipality, frame)
+        ]
+        self.current_kind = "unemployment"
+
+        self.raw_button.set_sensitive(True)
+        self.export_button.set_sensitive(True)
+
+        dates = pd.to_datetime(
+            {
+                "year": frame["year"].astype(int),
+                "month": frame["month"].astype(int),
+                "day": 1,
+            }
+        )
+
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.plot(
+            dates,
+            frame["percent"],
+        )
+        ax.set_title(
+            f"Registrerte helt ledige i "
+            f"{question.municipality}"
+        )
+        ax.set_xlabel("Tid")
+        ax.set_ylabel("Prosent av arbeidsstyrken")
+        ax.grid(True, alpha=0.25)
+        fig.tight_layout()
+
+        chart_path = "/tmp/political-analysis-chart.png"
+        fig.savefig(chart_path, dpi=180)
+        plt.close(fig)
+
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file(
+            chart_path
+        )
+        self.chart.set_pixbuf(pixbuf)
+        self.chart.set_visible(True)
+
+        self.source.set_text(
+            "Kilde: NAV · registrerte helt ledige"
+        )
 
     def on_election_comparison(self, question):
         self.status.set_text("Henter valgdata …")
@@ -881,6 +991,52 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
                 "valgresultat.no"
             )
 
+        elif self.current_kind == "unemployment":
+            for label, frame in self.current_series:
+                lines.append(label)
+                lines.append(
+                    "År      Måned   Helt ledige   Andel"
+                )
+                lines.append(
+                    "-----------------------------------"
+                )
+
+                for _, row in frame.iterrows():
+                    year = int(row["year"])
+                    month = int(row["month"])
+                    unemployed = row["unemployed"]
+                    percent = row["percent"]
+
+                    if pd.isna(unemployed):
+                        unemployed_text = "—"
+                    else:
+                        unemployed_text = (
+                            f"{int(unemployed):,}"
+                            .replace(",", " ")
+                        )
+
+                    if pd.isna(percent):
+                        percent_text = "—"
+                    else:
+                        percent_text = (
+                            f"{float(percent):.1f}"
+                            .replace(".", ",")
+                            + " %"
+                        )
+
+                    lines.append(
+                        f"{year:<8}"
+                        f"{month:<8}"
+                        f"{unemployed_text:>11}"
+                        f"{percent_text:>8}"
+                    )
+
+                lines.append("")
+
+            source_text = (
+                "Kilde: NAV · registrerte helt ledige"
+            )
+
         else:
             lines.append("Ingen rådata tilgjengelig.")
             source_text = ""
@@ -988,13 +1144,42 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
 
                 frames.append(export[columns])
 
+        elif self.current_kind == "unemployment":
+            for label, frame in self.current_series:
+                export = frame.copy()
+                export.insert(0, "Kommune", label)
+
+                export = export.rename(
+                    columns={
+                        "year": "År",
+                        "month": "Måned",
+                        "unemployed": "Helt ledige",
+                        "percent": "Andel av arbeidsstyrken",
+                        "municipality_code": "Kommunenummer",
+                    }
+                )
+
+                columns = [
+                    column
+                    for column in [
+                        "Kommune",
+                        "Kommunenummer",
+                        "År",
+                        "Måned",
+                        "Helt ledige",
+                        "Andel av arbeidsstyrken",
+                    ]
+                    if column in export.columns
+                ]
+
+                frames.append(export[columns])
+
         else:
             self.status.set_text(
                 "Ingen data å eksportere."
             )
             return
 
-        import pandas as pd
 
         combined = pd.concat(
             frames,

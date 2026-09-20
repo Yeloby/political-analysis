@@ -258,3 +258,35 @@ def test_parse_question_routes_municipal_election_comparison():
     assert question.second_party_code == "FRP"
     assert question.municipality == "Trondheim"
     assert question.since == 2011
+
+
+def test_unemployment_question():
+    from political_analysis.questions import (
+        UnemploymentQuestion,
+        parse_unemployment_question,
+    )
+
+    question = parse_unemployment_question(
+        "Hvordan har arbeidsledigheten i Trondheim "
+        "utviklet seg siden 2015?"
+    )
+
+    assert isinstance(question, UnemploymentQuestion)
+    assert question.municipality == "Trondheim"
+    assert question.since == 2015
+
+
+def test_parse_question_routes_unemployment():
+    from political_analysis.questions import (
+        UnemploymentQuestion,
+        parse_question,
+    )
+
+    question = parse_question(
+        "Hvordan har arbeidsledigheten i Trondheim "
+        "utviklet seg siden 2015?"
+    )
+
+    assert isinstance(question, UnemploymentQuestion)
+    assert question.municipality == "Trondheim"
+    assert question.since == 2015
