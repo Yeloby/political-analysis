@@ -1,7 +1,7 @@
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import GdkPixbuf, Gtk
+from gi.repository import GdkPixbuf, Gio, Gtk
 
 from .analysis import filter_since, summarize_series
 from .charts import population_figure
@@ -16,6 +16,8 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         )
 
         self.set_default_size(1000, 760)
+
+        self.current_series = []
 
         box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
@@ -102,6 +104,22 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
 
         scroll.set_child(content)
         box.append(scroll)
+
+        actions = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            spacing=8,
+        )
+        box.append(actions)
+
+        self.raw_button = Gtk.Button(label="Vis rådata")
+        self.raw_button.set_sensitive(False)
+        self.raw_button.connect("clicked", self.on_show_raw)
+        actions.append(self.raw_button)
+
+        self.export_button = Gtk.Button(label="Eksporter CSV")
+        self.export_button.set_sensitive(False)
+        self.export_button.connect("clicked", self.on_export)
+        actions.append(self.export_button)
 
         source = Gtk.Label(
             label=(
@@ -250,6 +268,10 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
                 f"Befolkningsutvikling i {municipality.name}"
             )
 
+        self.current_series = chart_series
+        self.raw_button.set_sensitive(True)
+        self.export_button.set_sensitive(True)
+
         fig = population_figure(
             chart_series,
             chart_title,
@@ -264,6 +286,143 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         pixbuf = GdkPixbuf.Pixbuf.new_from_file(chart_path)
         self.chart.set_pixbuf(pixbuf)
         self.chart.set_visible(True)
+    def on_show_raw(self, button):
+        if not self.current_series:
+            return
+
+        window = Gtk.Window(
+            title="Rådata",
+            transient_for=self,
+            modal=False,
+        )
+        window.set_default_size(700, 600)
+
+        outer = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=12,
+        )
+        outer.set_margin_top(18)
+        outer.set_margin_bottom(18)
+        outer.set_margin_start(18)
+        outer.set_margin_end(18)
+        window.set_child(outer)
+
+        title = Gtk.Label()
+        title.set_markup(
+            "<span size='x-large' weight='bold'>"
+            "Rådata fra SSB"
+            "</span>"
+        )
+        title.set_xalign(0)
+        outer.append(title)
+
+        text = Gtk.TextView()
+        text.set_editable(False)
+        text.set_cursor_visible(False)
+        text.set_monospace(True)
+
+        lines = []
+
+        for label, frame in self.current_series:
+            lines.append(label)
+            lines.append("År      Innbyggere")
+            lines.append("------------------")
+
+            for _, row in frame.iterrows():
+                year = str(row["Tid_code"])
+                value = int(row["value"])
+                value_text = f"{value:,}".replace(",", " ")
+                lines.append(f"{year:<8}{value_text:>10}")
+
+            lines.append("")
+
+        text.get_buffer().set_text("\n".join(lines))
+
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_vexpand(True)
+        scroll.set_hexpand(True)
+        scroll.set_child(text)
+        outer.append(scroll)
+
+        source = Gtk.Label(
+            label=(
+                "Kilde: Statistisk sentralbyrå · "
+                "Tabell 07459"
+            )
+        )
+        source.set_xalign(0)
+        outer.append(source)
+
+        window.present()
+
+    def on_export(self, button):
+        if not self.current_series:
+            return
+
+        dialog = Gtk.FileDialog()
+        dialog.set_title("Eksporter CSV")
+        dialog.set_initial_name("political-analysis.csv")
+
+        dialog.save(
+            self,
+            None,
+            self.on_export_finished,
+        )
+
+    def on_export_finished(self, dialog, result):
+        try:
+            file = dialog.save_finish(result)
+        except Exception:
+            return
+
+        if file is None:
+            return
+
+        path = file.get_path()
+
+        if path is None:
+            self.status.set_text(
+                "Kan bare eksportere til en lokal fil."
+            )
+            return
+
+        frames = []
+
+        for label, frame in self.current_series:
+            export = frame.copy()
+            export.insert(0, "Kommune", label)
+
+            export = export.rename(
+                columns={
+                    "Tid_code": "År",
+                    "value": "Innbyggere",
+                }
+            )
+
+            columns = [
+                column
+                for column in ["Kommune", "År", "Innbyggere"]
+                if column in export.columns
+            ]
+
+            frames.append(export[columns])
+
+        import pandas as pd
+
+        combined = pd.concat(
+            frames,
+            ignore_index=True,
+        )
+
+        combined.to_csv(
+            path,
+            index=False,
+            encoding="utf-8-sig",
+        )
+
+        self.status.set_text(
+            f"Eksportert til {path}"
+        )
 
 
 class PoliticalAnalysisApp(Gtk.Application):
