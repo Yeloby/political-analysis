@@ -125,10 +125,12 @@ PARTY_ALIASES = {
 
 def normalize_party(value: str) -> str:
     key = value.casefold().strip()
-    key = key.removesuffix("s")
 
     if key in PARTY_ALIASES:
         return PARTY_ALIASES[key]
+
+    if key.endswith("s") and key[:-1] in PARTY_ALIASES:
+        return PARTY_ALIASES[key[:-1]]
 
     raise ValueError(f"Ukjent parti «{value}».")
 

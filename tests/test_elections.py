@@ -8,6 +8,15 @@ from political_analysis.providers.norway.elections import (
 )
 
 
+@pytest.fixture(autouse=True)
+def clear_municipality_index():
+    from political_analysis.providers.norway import elections
+
+    elections._MUNICIPALITY_INDEX.clear()
+    yield
+    elections._MUNICIPALITY_INDEX.clear()
+
+
 def test_find_related_area_exact():
     data = {
         "_links": {
