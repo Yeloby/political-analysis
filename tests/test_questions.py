@@ -52,3 +52,51 @@ def test_unknown_question():
         parse_population_question(
             "Hvor mange biler finnes i Norge?"
         )
+
+
+from political_analysis.questions import (
+    parse_election_question,
+    normalize_party,
+)
+
+
+def test_party_alias_frp():
+    assert normalize_party("FrP") == "FRP"
+    assert normalize_party("FrPs") == "FRP"
+    assert normalize_party("Fremskrittspartiet") == "FRP"
+
+
+def test_election_question():
+    question = parse_election_question(
+        "Vis FrPs stortingsvalgresultater i Trondheim siden 2009"
+    )
+
+    assert question.party_code == "FRP"
+    assert question.municipality == "Trondheim"
+    assert question.since == 2009
+
+
+from political_analysis.questions import (
+    ElectionQuestion,
+    PopulationQuestion,
+    parse_question,
+)
+
+
+def test_parse_question_routes_population():
+    question = parse_question(
+        "Vis befolkningen i Trondheim siden 2000"
+    )
+
+    assert isinstance(question, PopulationQuestion)
+
+
+def test_parse_question_routes_election():
+    question = parse_question(
+        "Vis FrPs stortingsvalgresultater i Trondheim siden 2009"
+    )
+
+    assert isinstance(question, ElectionQuestion)
+    assert question.party_code == "FRP"
+    assert question.municipality == "Trondheim"
+    assert question.since == 2009
