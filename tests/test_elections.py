@@ -13,8 +13,10 @@ def clear_municipality_index():
     from political_analysis.providers.norway import elections
 
     elections._MUNICIPALITY_INDEX.clear()
+    elections._MUNICIPALITY_ELECTION_INDEX.clear()
     yield
     elections._MUNICIPALITY_INDEX.clear()
+    elections._MUNICIPALITY_ELECTION_INDEX.clear()
 
 
 def test_find_related_area_exact():
@@ -199,3 +201,159 @@ def test_find_storting_municipality_missing(monkeypatch):
             2025,
             "Atlantis",
         )
+
+
+def test_find_municipality_election_area(monkeypatch):
+    from political_analysis.providers.norway import elections
+
+    responses = {
+        "/2023/ko": {
+            "_links": {
+                "related": [
+                    {
+                        "nr": "50",
+                        "navn": "Trøndelag",
+                        "href": "/2023/ko/50",
+                    }
+                ]
+            }
+        },
+        "/2023/ko/50": {
+            "_links": {
+                "related": [
+                    {
+                        "nr": "5001",
+                        "navn": "Trondheim",
+                        "href": "/2023/ko/50/5001",
+                    }
+                ]
+            }
+        },
+    }
+
+    monkeypatch.setattr(
+        elections.ElectionClient,
+        "get",
+        lambda self, path: responses[path],
+    )
+
+    county, municipality = elections.find_municipality_election_area(
+        2023,
+        "Trondheim",
+    )
+
+    assert county.name == "Trøndelag"
+    assert municipality.number == "5001"
+    assert municipality.name == "Trondheim"
+    assert municipality.href == "/2023/ko/50/5001"
+
+
+def test_find_municipality_election_area_missing(monkeypatch):
+    from political_analysis.providers.norway import elections
+
+    responses = {
+        "/2023/ko": {
+            "_links": {
+                "related": [
+                    {
+                        "nr": "50",
+                        "navn": "Trøndelag",
+                        "href": "/2023/ko/50",
+                    }
+                ]
+            }
+        },
+        "/2023/ko/50": {
+            "_links": {"related": []}
+        },
+    }
+
+    monkeypatch.setattr(
+        elections.ElectionClient,
+        "get",
+        lambda self, path: responses[path],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Fant ikke kommunen",
+    ):
+        elections.find_municipality_election_area(
+            2023,
+            "Andeby",
+        )
+
+
+def test_municipality_election_result(monkeypatch):
+    from political_analysis.providers.norway import elections
+
+    responses = {
+        "/2023/ko": {
+            "_links": {
+                "related": [
+                    {
+                        "nr": "50",
+                        "navn": "Trøndelag",
+                        "href": "/2023/ko/50",
+                    }
+                ]
+            }
+        },
+        "/2023/ko/50": {
+            "_links": {
+                "related": [
+                    {
+                        "nr": "5001",
+                        "navn": "Trondheim",
+                        "href": "/2023/ko/50/5001",
+                    }
+                ]
+            }
+        },
+        "/2023/ko/50/5001": {
+            "id": {
+                "valgaar": "2023",
+                "valgtype": "KO",
+                "nivaa": "kommune",
+                "nr": "5001",
+                "navn": "Trondheim",
+            },
+            "partier": [
+                {
+                    "id": {
+                        "partikategori": 1,
+                        "partikode": "H",
+                        "navn": "Høyre",
+                    },
+                    "stemmer": {
+                        "resultat": {
+                            "prosent": 29.21273,
+                            "antall": {"total": 31945},
+                        }
+                    },
+                }
+            ],
+        },
+    }
+
+    monkeypatch.setattr(
+        elections.ElectionClient,
+        "get",
+        lambda self, path: responses[path],
+    )
+
+    area, frame = elections.municipality_election_result(
+        2023,
+        "Trondheim",
+    )
+
+    assert area.number == "5001"
+    assert area.name == "Trondheim"
+
+    row = frame.iloc[0]
+    assert row["year"] == 2023
+    assert row["election_type"] == "KO"
+    assert row["area_number"] == "5001"
+    assert row["party_code"] == "H"
+    assert row["votes"] == 31945
+    assert row["percent"] == pytest.approx(29.21273)

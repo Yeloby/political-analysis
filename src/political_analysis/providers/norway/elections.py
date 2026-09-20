@@ -180,6 +180,57 @@ def storting_municipality_result(
     )
 
 
+_MUNICIPALITY_ELECTION_INDEX = {}
+
+
+def municipality_election_index(year: int):
+    if year in _MUNICIPALITY_ELECTION_INDEX:
+        return _MUNICIPALITY_ELECTION_INDEX[year]
+
+    client = ElectionClient()
+    national = client.get(f"/{year}/ko")
+    index = {}
+
+    for county in related_areas(national):
+        county_data = client.get(county.href)
+
+        for municipality in related_areas(county_data):
+            key = municipality.name.casefold().strip()
+            index.setdefault(key, []).append((county, municipality))
+
+    _MUNICIPALITY_ELECTION_INDEX[year] = index
+    return index
+
+
+def find_municipality_election_area(year: int, municipality: str):
+    wanted = municipality.casefold().strip()
+    index = municipality_election_index(year)
+    matches = index.get(wanted, [])
+
+    if not matches:
+        raise ValueError(
+            f"Fant ikke kommunen «{municipality}» i kommunevalget {year}."
+        )
+
+    if len(matches) > 1:
+        counties = ", ".join(county.name for county, _ in matches)
+        raise ValueError(
+            f"Kommunen «{municipality}» finnes i flere fylker: {counties}"
+        )
+
+    return matches[0]
+
+
+def municipality_election_result(year: int, municipality: str):
+    client = ElectionClient()
+    _, municipality_area = find_municipality_election_area(
+        year,
+        municipality,
+    )
+    municipality_data = client.get(municipality_area.href)
+    return municipality_area, parties_to_frame(municipality_data)
+
+
 STORTING_YEARS = (2009, 2013, 2017, 2021, 2025)
 
 
