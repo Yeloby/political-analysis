@@ -3,20 +3,20 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 
-def population_chart(
-    series,
-    output: str | Path,
-    title: str,
-):
-    output = Path(output)
-
-    fig, ax = plt.subplots(figsize=(10, 6))
+def population_figure(series, title: str):
+    fig, ax = plt.subplots(figsize=(12, 6))
 
     for label, frame in series:
         years = frame["Tid_code"].astype(int)
         values = frame["value"].astype(float)
 
-        ax.plot(years, values, marker="o", markersize=3, label=label)
+        ax.plot(
+            years,
+            values,
+            marker="o",
+            markersize=3,
+            label=label,
+        )
 
     ax.set_title(title)
     ax.set_xlabel("År")
@@ -27,6 +27,17 @@ def population_chart(
         ax.legend()
 
     fig.tight_layout()
+    return fig
+
+
+def population_chart(
+    series,
+    output: str | Path,
+    title: str,
+):
+    output = Path(output)
+
+    fig = population_figure(series, title)
     fig.savefig(output, dpi=160)
     plt.close(fig)
 

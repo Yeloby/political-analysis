@@ -1,9 +1,10 @@
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk
+from gi.repository import GdkPixbuf, Gtk
 
 from .analysis import filter_since, summarize_series
+from .charts import population_figure
 from .providers.norway.ssb import municipality_population
 
 
@@ -14,7 +15,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             title="Political Analysis",
         )
 
-        self.set_default_size(760, 560)
+        self.set_default_size(1000, 760)
 
         box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
@@ -76,7 +77,23 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_vexpand(True)
-        scroll.set_child(self.result)
+
+        content = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=16,
+        )
+        content.append(self.result)
+
+        self.chart = Gtk.Picture()
+        self.chart.set_can_shrink(True)
+        self.chart.set_content_fit(Gtk.ContentFit.CONTAIN)
+        self.chart.set_size_request(-1, 440)
+        self.chart.set_hexpand(True)
+        self.chart.set_vexpand(True)
+        self.chart.set_visible(False)
+        content.append(self.chart)
+
+        scroll.set_child(content)
         box.append(scroll)
 
         source = Gtk.Label(
@@ -138,6 +155,21 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             f"Metode: SSBs aggregerte kommuneserie for "
             f"sammenhengende historiske tall."
         )
+
+        fig = population_figure(
+            [(municipality.name, frame)],
+            f"Befolkningsutvikling i {municipality.name}",
+        )
+
+        chart_path = "/tmp/political-analysis-chart.png"
+        fig.savefig(chart_path, dpi=180)
+
+        import matplotlib.pyplot as plt
+        plt.close(fig)
+
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file(chart_path)
+        self.chart.set_pixbuf(pixbuf)
+        self.chart.set_visible(True)
 
 
 class PoliticalAnalysisApp(Gtk.Application):
