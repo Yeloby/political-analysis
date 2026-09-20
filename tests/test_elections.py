@@ -82,3 +82,111 @@ def test_parties_to_frame():
     assert row["party_name"] == "Fremskrittspartiet"
     assert row["votes"] == 22730
     assert row["percent"] == pytest.approx(17.31585)
+
+
+def test_find_storting_municipality(monkeypatch):
+    from political_analysis.providers.norway import elections
+
+    responses = {
+        "/2025/st": {
+            "_links": {
+                "related": [
+                    {
+                        "nr": "16",
+                        "navn": "Sør-Trøndelag",
+                        "href": "/2025/st/16",
+                    },
+                    {
+                        "nr": "12",
+                        "navn": "Hordaland",
+                        "href": "/2025/st/12",
+                    },
+                ]
+            }
+        },
+        "/2025/st/16": {
+            "_links": {
+                "related": [
+                    {
+                        "nr": "5001",
+                        "navn": "Trondheim",
+                        "href": "/2025/st/16/5001",
+                    }
+                ]
+            }
+        },
+        "/2025/st/12": {
+            "_links": {
+                "related": [
+                    {
+                        "nr": "4601",
+                        "navn": "Bergen",
+                        "href": "/2025/st/12/4601",
+                    }
+                ]
+            }
+        },
+    }
+
+    monkeypatch.setattr(
+        elections.ElectionClient,
+        "get",
+        lambda self, path: responses[path],
+    )
+
+    district, municipality = (
+        elections.find_storting_municipality(
+            2025,
+            "Bergen",
+        )
+    )
+
+    assert district.name == "Hordaland"
+    assert municipality.name == "Bergen"
+    assert municipality.number == "4601"
+
+
+def test_find_storting_municipality_missing(monkeypatch):
+    from political_analysis.providers.norway import elections
+
+    responses = {
+        "/2025/st": {
+            "_links": {
+                "related": [
+                    {
+                        "nr": "16",
+                        "navn": "Sør-Trøndelag",
+                        "href": "/2025/st/16",
+                    }
+                ]
+            }
+        },
+        "/2025/st/16": {
+            "_links": {
+                "related": [
+                    {
+                        "nr": "5001",
+                        "navn": "Trondheim",
+                        "href": "/2025/st/16/5001",
+                    }
+                ]
+            }
+        },
+    }
+
+    monkeypatch.setattr(
+        elections.ElectionClient,
+        "get",
+        lambda self, path: responses[path],
+    )
+
+    import pytest
+
+    with pytest.raises(
+        ValueError,
+        match="Fant ikke kommunen",
+    ):
+        elections.find_storting_municipality(
+            2025,
+            "Atlantis",
+        )
