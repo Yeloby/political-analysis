@@ -100,3 +100,35 @@ def test_parse_question_routes_election():
     assert question.party_code == "FRP"
     assert question.municipality == "Trondheim"
     assert question.since == 2009
+
+
+def test_natural_election_question():
+    question = parse_election_question(
+        "Hvordan har FrP gjort det i stortingsvalg "
+        "i Trondheim siden 2009?"
+    )
+
+    assert question.party_code == "FRP"
+    assert question.municipality == "Trondheim"
+    assert question.since == 2009
+
+
+def test_election_development_question():
+    question = parse_election_question(
+        "Hvordan har Høyre utviklet seg i stortingsvalg "
+        "i Bergen fra 2013?"
+    )
+
+    assert question.party_code == "H"
+    assert question.municipality == "Bergen"
+    assert question.since == 2013
+
+
+def test_short_election_question():
+    question = parse_election_question(
+        "Vis Arbeiderpartiet i stortingsvalget i Oslo"
+    )
+
+    assert question.party_code == "A"
+    assert question.municipality == "Oslo"
+    assert question.since is None

@@ -128,23 +128,58 @@ def normalize_party(value: str) -> str:
 def parse_election_question(text: str) -> ElectionQuestion:
     text = " ".join(text.strip().split())
 
-    match = re.search(
-        r"^vis\s+(.+?)\s+stortingsvalgresultater\s+i\s+(.+?)"
-        r"(?:\s+siden\s+(\d{4}))?[?.]?$",
+    year_match = re.search(
+        r"\b(?:siden|fra)\s+(\d{4})\b",
         text,
         flags=re.IGNORECASE,
     )
+    since = int(year_match.group(1)) if year_match else None
 
-    if not match:
-        raise ValueError(
-            "Jeg forstår foreløpig valgspørsmål som "
-            "«Vis FrPs stortingsvalgresultater i Trondheim siden 2009»."
+    cleaned = re.sub(
+        r"\s+(?:siden|fra)\s+\d{4}\b",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip(" .?")
+
+    patterns = [
+        (
+            r"^vis\s+(.+?)\s+"
+            r"stortingsvalgresultater\s+i\s+(.+)$"
+        ),
+        (
+            r"^hvordan\s+har\s+(.+?)\s+gjort\s+det\s+"
+            r"i\s+stortingsvalg(?:et)?\s+i\s+(.+)$"
+        ),
+        (
+            r"^hvordan\s+har\s+(.+?)\s+utviklet\s+seg\s+"
+            r"i\s+stortingsvalg(?:et)?\s+i\s+(.+)$"
+        ),
+        (
+            r"^vis\s+(.+?)\s+i\s+stortingsvalg(?:et)?\s+"
+            r"i\s+(.+)$"
+        ),
+    ]
+
+    for pattern in patterns:
+        match = re.search(
+            pattern,
+            cleaned,
+            flags=re.IGNORECASE,
         )
 
-    return ElectionQuestion(
-        party_code=normalize_party(match.group(1)),
-        municipality=match.group(2).strip(),
-        since=int(match.group(3)) if match.group(3) else None,
+        if match:
+            return ElectionQuestion(
+                party_code=normalize_party(match.group(1)),
+                municipality=match.group(2).strip(" ,.?!"),
+                since=since,
+            )
+
+    raise ValueError(
+        "Jeg forstår foreløpig valgspørsmål som "
+        "«Vis FrPs stortingsvalgresultater i Trondheim siden 2009» "
+        "eller «Hvordan har FrP gjort det i stortingsvalg i "
+        "Trondheim siden 2009?»."
     )
 
 
