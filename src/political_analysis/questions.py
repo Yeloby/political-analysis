@@ -110,6 +110,14 @@ class MunicipalElectionQuestion:
 
 
 @dataclass(frozen=True)
+class MunicipalElectionComparisonQuestion:
+    first_party_code: str
+    second_party_code: str
+    municipality: str
+    since: int | None = None
+
+
+@dataclass(frozen=True)
 class ElectionComparisonQuestion:
     first_party_code: str
     second_party_code: str
@@ -203,6 +211,58 @@ def parse_election_comparison_question(
         "Jeg forstår foreløpig partisammenligninger som "
         "«Sammenlign FrP og Høyre i stortingsvalg "
         "i Trondheim siden 2009»."
+    )
+
+
+def parse_municipal_election_comparison_question(
+    text: str,
+) -> MunicipalElectionComparisonQuestion:
+    text = " ".join(text.strip().split())
+
+    year_match = re.search(
+        r"\b(?:siden|fra)\s+(\d{4})\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    since = int(year_match.group(1)) if year_match else None
+
+    cleaned = re.sub(
+        r"\s+(?:siden|fra)\s+\d{4}\b",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip(" .?")
+
+    patterns = [
+        (
+            r"^sammenlign\s+(.+?)\s+og\s+(.+?)\s+"
+            r"i\s+kommunevalg(?:et)?\s+i\s+(.+)$"
+        ),
+        (
+            r"^sammenlign\s+(.+?)\s+med\s+(.+?)\s+"
+            r"i\s+kommunevalg(?:et)?\s+i\s+(.+)$"
+        ),
+    ]
+
+    for pattern in patterns:
+        match = re.search(
+            pattern,
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+
+        if match:
+            return MunicipalElectionComparisonQuestion(
+                first_party_code=normalize_party(match.group(1)),
+                second_party_code=normalize_party(match.group(2)),
+                municipality=match.group(3).strip(" ,.?!"),
+                since=since,
+            )
+
+    raise ValueError(
+        "Jeg forstår foreløpig kommunevalgsammenligninger som "
+        "«Sammenlign Høyre og FrP i kommunevalg "
+        "i Trondheim siden 2011»."
     )
 
 
@@ -307,6 +367,7 @@ def parse_election_question(text: str) -> ElectionQuestion:
 def parse_question(text: str):
     parsers = [
         parse_election_comparison_question,
+        parse_municipal_election_comparison_question,
         parse_municipal_election_question,
         parse_election_question,
         parse_population_question,
