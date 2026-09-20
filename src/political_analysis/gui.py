@@ -55,6 +55,13 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         self.place.set_hexpand(True)
         form.append(self.place)
 
+        self.compare_place = Gtk.Entry()
+        self.compare_place.set_placeholder_text(
+            "Sammenlign med, f.eks. Bergen"
+        )
+        self.compare_place.set_hexpand(True)
+        form.append(self.compare_place)
+
         self.since = Gtk.Entry()
         self.since.set_placeholder_text("Fra år")
         self.since.set_width_chars(8)
@@ -107,6 +114,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
 
     def on_analyze(self, button):
         place = self.place.get_text().strip()
+        compare_place = self.compare_place.get_text().strip()
         since_text = self.since.get_text().strip()
 
         if not place:
@@ -130,6 +138,31 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
 
             summary = summarize_series(frame)
 
+            comparison = None
+
+            if compare_place:
+                compare_municipality, compare_frame = (
+                    municipality_population(compare_place)
+                )
+                compare_frame = filter_since(
+                    compare_frame,
+                    since,
+                )
+
+                if compare_frame.empty:
+                    raise ValueError(
+                        "Ingen data for sammenligningskommunen "
+                        "i valgt periode."
+                    )
+
+                compare_summary = summarize_series(compare_frame)
+
+                comparison = (
+                    compare_municipality,
+                    compare_frame,
+                    compare_summary,
+                )
+
         except Exception as error:
             self.status.set_text(str(error))
             return
@@ -147,18 +180,79 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             f"{summary.first_year}–{summary.last_year}"
         )
 
-        self.result.set_markup(
-            f"<span size='x-large' weight='bold'>"
-            f"{first} → {last}"
-            f"</span>\n\n"
-            f"Endring: {change} personer ({percent} %)\n\n"
-            f"Metode: SSBs aggregerte kommuneserie for "
-            f"sammenhengende historiske tall."
-        )
+        if comparison:
+            (
+                compare_municipality,
+                compare_frame,
+                compare_summary,
+            ) = comparison
+
+            compare_first = (
+                f"{compare_summary.first_value:,}"
+                .replace(",", " ")
+            )
+            compare_last = (
+                f"{compare_summary.last_value:,}"
+                .replace(",", " ")
+            )
+            compare_change = (
+                f"{compare_summary.change:+,}"
+                .replace(",", " ")
+            )
+            compare_percent = (
+                f"{compare_summary.percent_change:+.1f}"
+                .replace(".", ",")
+            )
+
+            self.result.set_markup(
+                f"<b>{municipality.name}</b>\n"
+                f"<span size='x-large' weight='bold'>"
+                f"{first} → {last}"
+                f"</span>\n"
+                f"Endring: {change} personer "
+                f"({percent} %)\n\n"
+                f"<b>{compare_municipality.name}</b>\n"
+                f"<span size='x-large' weight='bold'>"
+                f"{compare_first} → {compare_last}"
+                f"</span>\n"
+                f"Endring: {compare_change} personer "
+                f"({compare_percent} %)\n\n"
+                f"Metode: SSBs aggregerte kommuneserier for "
+                f"sammenhengende historiske tall."
+            )
+
+            chart_series = [
+                (municipality.name, frame),
+                (compare_municipality.name, compare_frame),
+            ]
+
+            chart_title = (
+                f"{municipality.name} og "
+                f"{compare_municipality.name}"
+            )
+
+        else:
+            self.result.set_markup(
+                f"<span size='x-large' weight='bold'>"
+                f"{first} → {last}"
+                f"</span>\n\n"
+                f"Endring: {change} personer "
+                f"({percent} %)\n\n"
+                f"Metode: SSBs aggregerte kommuneserie for "
+                f"sammenhengende historiske tall."
+            )
+
+            chart_series = [
+                (municipality.name, frame),
+            ]
+
+            chart_title = (
+                f"Befolkningsutvikling i {municipality.name}"
+            )
 
         fig = population_figure(
-            [(municipality.name, frame)],
-            f"Befolkningsutvikling i {municipality.name}",
+            chart_series,
+            chart_title,
         )
 
         chart_path = "/tmp/political-analysis-chart.png"
