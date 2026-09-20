@@ -25,6 +25,7 @@ dev = [
 
 [project.scripts]
 political-analysis = "political_analysis.cli:main"
+political-analysis-gui = "political_analysis.gui:main"
 pol = "political_analysis.cli:main"
 
 [tool.setuptools.packages.find]
