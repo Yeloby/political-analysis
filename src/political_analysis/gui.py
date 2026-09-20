@@ -6,6 +6,7 @@ from gi.repository import GdkPixbuf, Gio, Gtk
 from .analysis import filter_since, summarize_series
 from .charts import population_figure
 from .providers.norway.ssb import municipality_population
+from .questions import parse_population_question
 
 
 class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
@@ -43,6 +44,44 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         )
         subtitle.set_xalign(0)
         box.append(subtitle)
+
+        question_label = Gtk.Label(
+            label="Hva vil du finne ut?"
+        )
+        question_label.set_xalign(0)
+        box.append(question_label)
+
+        question_form = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            spacing=8,
+        )
+        box.append(question_form)
+
+        self.question = Gtk.Entry()
+        self.question.set_placeholder_text(
+            "F.eks. Sammenlign Trondheim og Bergen siden 2000"
+        )
+        self.question.set_hexpand(True)
+        self.question.connect(
+            "activate",
+            self.on_question,
+        )
+        question_form.append(self.question)
+
+        question_button = Gtk.Button(
+            label="Analyser spørsmål"
+        )
+        question_button.connect(
+            "clicked",
+            self.on_question,
+        )
+        question_form.append(question_button)
+
+        advanced_label = Gtk.Label(
+            label="Manuelle valg"
+        )
+        advanced_label.set_xalign(0)
+        box.append(advanced_label)
 
         form = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL,
@@ -129,6 +168,29 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         )
         source.set_xalign(0)
         box.append(source)
+
+    def on_question(self, button):
+        try:
+            question = parse_population_question(
+                self.question.get_text()
+            )
+        except ValueError as error:
+            self.status.set_text(str(error))
+            return
+
+        self.place.set_text(question.place)
+
+        self.compare_place.set_text(
+            question.compare_place or ""
+        )
+
+        self.since.set_text(
+            str(question.since)
+            if question.since is not None
+            else ""
+        )
+
+        self.on_analyze(button)
 
     def on_analyze(self, button):
         place = self.place.get_text().strip()
