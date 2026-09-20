@@ -7,7 +7,12 @@ from .analysis import filter_since, summarize_series
 from .charts import population_figure
 from .providers.norway.elections import storting_party_history
 from .providers.norway.ssb import municipality_population
-from .questions import ElectionQuestion, PopulationQuestion, parse_question
+from .questions import (
+    ElectionComparisonQuestion,
+    ElectionQuestion,
+    PopulationQuestion,
+    parse_question,
+)
 
 
 class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
@@ -193,9 +198,140 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             self.on_analyze(button)
             return
 
+        if isinstance(question, ElectionComparisonQuestion):
+            self.on_election_comparison(question)
+            return
+
         if isinstance(question, ElectionQuestion):
             self.on_election_question(question)
             return
+
+    def on_election_comparison(self, question):
+        self.status.set_text("Henter valgdata …")
+
+        try:
+            first_frame = storting_party_history(
+                municipality=question.municipality,
+                party_code=question.first_party_code,
+                since=question.since,
+            )
+            second_frame = storting_party_history(
+                municipality=question.municipality,
+                party_code=question.second_party_code,
+                since=question.since,
+            )
+        except Exception as error:
+            self.status.set_text(str(error))
+            return
+
+        first_name = str(
+            first_frame.iloc[-1]["party_name"]
+        )
+        second_name = str(
+            second_frame.iloc[-1]["party_name"]
+        )
+
+        first_start = float(
+            first_frame.iloc[0]["percent"]
+        )
+        first_end = float(
+            first_frame.iloc[-1]["percent"]
+        )
+        second_start = float(
+            second_frame.iloc[0]["percent"]
+        )
+        second_end = float(
+            second_frame.iloc[-1]["percent"]
+        )
+
+        first_change = first_end - first_start
+        second_change = second_end - second_start
+
+        def pct(value):
+            return f"{value:.2f}".replace(".", ",")
+
+        def pp(value):
+            return f"{value:+.2f}".replace(".", ",")
+
+        first_year = min(
+            int(first_frame.iloc[0]["year"]),
+            int(second_frame.iloc[0]["year"]),
+        )
+        last_year = max(
+            int(first_frame.iloc[-1]["year"]),
+            int(second_frame.iloc[-1]["year"]),
+        )
+
+        self.status.set_text(
+            f"{first_name} og {second_name} · "
+            f"{question.municipality} · "
+            f"{first_year}–{last_year}"
+        )
+
+        self.result.set_markup(
+            f"<b>{first_name}</b>\n"
+            f"<span size='x-large' weight='bold'>"
+            f"{pct(first_start)} % → {pct(first_end)} %"
+            f"</span>\n"
+            f"Endring: {pp(first_change)} prosentpoeng\n\n"
+            f"<b>{second_name}</b>\n"
+            f"<span size='x-large' weight='bold'>"
+            f"{pct(second_start)} % → {pct(second_end)} %"
+            f"</span>\n"
+            f"Endring: {pp(second_change)} prosentpoeng\n\n"
+            f"Metode: Partienes stemmeandeler ved "
+            f"stortingsvalg i {question.municipality}."
+        )
+
+        self.current_series = [
+            (first_name, first_frame),
+            (second_name, second_frame),
+        ]
+        self.current_kind = "election"
+
+        self.raw_button.set_sensitive(True)
+        self.export_button.set_sensitive(True)
+
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        ax.plot(
+            first_frame["year"],
+            first_frame["percent"],
+            marker="o",
+            label=first_name,
+        )
+        ax.plot(
+            second_frame["year"],
+            second_frame["percent"],
+            marker="o",
+            label=second_name,
+        )
+
+        ax.set_title(
+            f"{first_name} og {second_name} i "
+            f"{question.municipality} – stortingsvalg"
+        )
+        ax.set_xlabel("Valgår")
+        ax.set_ylabel("Prosent")
+        ax.legend()
+        ax.grid(True, alpha=0.25)
+        fig.tight_layout()
+
+        chart_path = "/tmp/political-analysis-chart.png"
+        fig.savefig(chart_path, dpi=180)
+        plt.close(fig)
+
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file(
+            chart_path
+        )
+        self.chart.set_pixbuf(pixbuf)
+        self.chart.set_visible(True)
+
+        self.source.set_text(
+            "Kilde: Valgdirektoratet · valgresultat.no"
+        )
 
     def on_election_question(self, question):
         self.status.set_text("Henter valgdata …")
@@ -240,7 +376,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             f"</span>\n\n"
             f"Endring: {change_text} prosentpoeng\n\n"
             f"Metode: Partiets andel av godkjente stemmer "
-            f"ved stortingsvalg i Trondheim."
+            f"ved stortingsvalg i {question.municipality}."
         )
 
         self.current_series = [

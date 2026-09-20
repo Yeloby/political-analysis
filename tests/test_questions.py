@@ -132,3 +132,61 @@ def test_short_election_question():
     assert question.party_code == "A"
     assert question.municipality == "Oslo"
     assert question.since is None
+
+
+def test_election_comparison_question():
+    from political_analysis.questions import (
+        ElectionComparisonQuestion,
+        parse_election_comparison_question,
+    )
+
+    question = parse_election_comparison_question(
+        "Sammenlign FrP og Høyre i stortingsvalg "
+        "i Trondheim siden 2009"
+    )
+
+    assert isinstance(
+        question,
+        ElectionComparisonQuestion,
+    )
+    assert question.first_party_code == "FRP"
+    assert question.second_party_code == "H"
+    assert question.municipality == "Trondheim"
+    assert question.since == 2009
+
+
+def test_election_comparison_with_med():
+    from political_analysis.questions import (
+        parse_election_comparison_question,
+    )
+
+    question = parse_election_comparison_question(
+        "Sammenlign Arbeiderpartiet med SV "
+        "i stortingsvalget i Oslo fra 2013"
+    )
+
+    assert question.first_party_code == "A"
+    assert question.second_party_code == "SV"
+    assert question.municipality == "Oslo"
+    assert question.since == 2013
+
+
+def test_router_prefers_election_comparison():
+    from political_analysis.questions import (
+        ElectionComparisonQuestion,
+        parse_question,
+    )
+
+    question = parse_question(
+        "Sammenlign FrP og Høyre i stortingsvalg "
+        "i Trondheim siden 2009"
+    )
+
+    assert isinstance(
+        question,
+        ElectionComparisonQuestion,
+    )
+    assert question.first_party_code == "FRP"
+    assert question.second_party_code == "H"
+    assert question.municipality == "Trondheim"
+    assert question.since == 2009
