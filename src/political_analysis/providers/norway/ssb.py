@@ -20,23 +20,38 @@ class SsbClient:
         self.cache = JsonCache()
 
     def search(self, query: str):
-        params = {"query": query, "lang": self.language}
+        params = {
+            "query": query,
+            "lang": self.language,
+            "pagesize": 100,
+        }
 
         cached = self.cache.get("ssb-search", params)
+
         if cached is None:
             response = httpx.get(
-                f"{BASE_URL}/search",
+                f"{BASE_URL}/tables",
                 params=params,
                 timeout=self.timeout,
                 follow_redirects=True,
             )
             response.raise_for_status()
+
             cached = response.json()
             self.cache.set("ssb-search", params, cached)
 
-        items = cached.get("tables", cached if isinstance(cached, list) else [])
+        if isinstance(cached, list):
+            items = cached
+        else:
+            items = (
+                cached.get("tables")
+                or cached.get("items")
+                or cached.get("data")
+                or []
+            )
 
         results = []
+
         for item in items:
             table_id = str(
                 item.get("id")
@@ -44,14 +59,20 @@ class SsbClient:
                 or item.get("code")
                 or ""
             )
+
             title = str(
-                item.get("title")
+                item.get("label")
+                or item.get("title")
                 or item.get("text")
-                or item.get("label")
                 or table_id
             )
 
             if table_id:
-                results.append(SsbTable(table_id, title))
+                results.append(
+                    SsbTable(
+                        id=table_id,
+                        title=title,
+                    )
+                )
 
         return results
