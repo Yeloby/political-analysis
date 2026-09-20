@@ -1,6 +1,6 @@
 import argparse
 
-from .providers.norway.ssb import SsbClient, trondheim_population
+from .providers.norway.ssb import SsbClient, municipality_population
 
 
 def main():
@@ -34,15 +34,13 @@ def main():
         return 0
 
     if args.command == "population":
-        if args.place.casefold() != "trondheim":
-            parser.error(
-                "v0.1 støtter foreløpig bare Trondheim."
-            )
-
-        frame = trondheim_population()
+        try:
+            municipality, frame = municipality_population(args.place)
+        except ValueError as error:
+            parser.error(str(error))
 
         print()
-        print("Befolkningsutvikling i Trondheim")
+        print(f"Befolkningsutvikling i {municipality.name}")
         print("=" * 35)
 
         for _, row in frame.iterrows():
@@ -55,9 +53,10 @@ def main():
         print()
         print("Kilde: Statistisk sentralbyrå")
         print("Tabell: 07459")
+        print(f"Kommune: {municipality.name} ({municipality.code})")
         print(
             "Metode: SSBs aggregerte kommuneserie "
-            "for Trondheim."
+            "for sammenhengende historiske tall."
         )
         print()
 
