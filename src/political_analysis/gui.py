@@ -147,7 +147,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         self.chart = Gtk.Picture()
         self.chart.set_can_shrink(True)
         self.chart.set_content_fit(Gtk.ContentFit.CONTAIN)
-        self.chart.set_size_request(-1, 440)
+        self.chart.set_size_request(-1, 360)
         self.chart.set_hexpand(True)
         self.chart.set_vexpand(True)
         self.chart.set_visible(False)
@@ -376,12 +376,29 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             f"{first_year}–{last_year}"
         )
 
+        first_percent_text = (
+            f"{first_percent:.2f}".replace(".", ",")
+        )
+        last_percent_text = (
+            f"{last_percent:.2f}".replace(".", ",")
+        )
+        change_text = (
+            f"{change:+.2f}".replace(".", ",")
+        )
+
         self.result.set_text(
             f"{party_name} · {question.municipality}\n"
-            f"{first_year}: {first_percent:.2f} %\n"
-            f"{last_year}: {last_percent:.2f} %\n"
-            f"Endring: {change:+.2f} prosentpoeng"
+            f"{first_year}: {first_percent_text} %\n"
+            f"{last_year}: {last_percent_text} %\n"
+            f"Endring: {change_text} prosentpoeng"
         )
+
+        self.current_series = [
+            (party_name, frame)
+        ]
+        self.current_kind = "election"
+        self.raw_button.set_sensitive(True)
+        self.export_button.set_sensitive(True)
 
         fig = election_figure(
             frame,
