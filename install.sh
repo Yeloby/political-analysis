@@ -4,8 +4,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$ROOT/.venv"
 
-python3 -m venv --system-site-packages "$VENV"
+if ! pkg-config --exists cairo gobject-introspection-1.0; then
+    echo "Missing GTK/PyGObject build dependencies."
+    echo
+    echo "On Ubuntu/Pop!_OS, install them with:"
+    echo "  sudo apt install libcairo2-dev libgirepository1.0-dev"
+    exit 1
+fi
+
+python3 -m venv "$VENV"
 "$VENV/bin/python" -m pip install --upgrade pip
+"$VENV/bin/pip" install "PyGObject==3.48.2"
 "$VENV/bin/pip" install -e "$ROOT"
 
 mkdir -p "$HOME/.local/bin"
