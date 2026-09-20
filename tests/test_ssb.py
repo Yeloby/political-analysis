@@ -73,7 +73,7 @@ def test_find_municipality_partial(monkeypatch):
 def test_find_municipality_missing(monkeypatch):
     monkeypatch.setattr(
         "political_analysis.providers.norway.ssb.municipalities",
-        lambda: [],
+        list,
     )
 
     with pytest.raises(ValueError, match="Fant ikke kommunen"):

@@ -2,7 +2,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("GdkPixbuf", "2.0")
-from gi.repository import GdkPixbuf, Gio, Gtk
+from gi.repository import GdkPixbuf, GLib, Gtk
 
 from .analysis import filter_since, summarize_series
 from .charts import population_figure
@@ -221,7 +221,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
                 party_code=question.second_party_code,
                 since=question.since,
             )
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             self.status.set_text(str(error))
             return
 
@@ -346,7 +346,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
                 party_code=question.party_code,
                 since=question.since,
             )
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             self.status.set_text(str(error))
             return
 
@@ -469,7 +469,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
                     compare_summary,
                 )
 
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             self.status.set_text(str(error))
             return
 
@@ -712,7 +712,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
     def on_export_finished(self, dialog, result):
         try:
             file = dialog.save_finish(result)
-        except Exception:
+        except GLib.Error:
             return
 
         if file is None:

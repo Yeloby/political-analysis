@@ -55,8 +55,8 @@ def test_unknown_question():
 
 
 from political_analysis.questions import (
-    parse_election_question,
     normalize_party,
+    parse_election_question,
 )
 
 

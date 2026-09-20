@@ -5,7 +5,6 @@ import pandas as pd
 
 from ...cache import JsonCache
 
-
 BASE_URL = "https://valgresultat.no/api"
 
 
@@ -195,7 +194,7 @@ def storting_party_history(
         if since is not None and year < since:
             continue
 
-        area, frame = storting_municipality_result(
+        _, frame = storting_municipality_result(
             year=year,
             municipality=municipality,
         )

@@ -30,8 +30,10 @@ def parse_population_question(text: str) -> PopulationQuestion:
     ).strip(" .?")
 
     compare_patterns = [
-        r"^sammenlign\s+(?:befolkningen\s+i\s+)?"
-        r"(.+?)\s+og\s+(.+)$",
+        (
+            r"^sammenlign\s+(?:befolkningen\s+i\s+)?"
+            r"(.+?)\s+og\s+(.+)$"
+        ),
         r"^sammenlign\s+(.+?)\s+med\s+(.+)$",
     ]
 
@@ -49,12 +51,18 @@ def parse_population_question(text: str) -> PopulationQuestion:
             )
 
     single_patterns = [
-        r"^vis\s+(?:befolkningen|befolkning)"
-        r"(?:sutviklingen)?\s+i\s+(.+)$",
-        r"^hvordan\s+har\s+(?:befolkningen|befolkning)"
-        r"(?:sutviklingen)?\s+i\s+(.+?)\s+utviklet\s+seg$",
-        r"^(?:befolkningen|befolkning)"
-        r"(?:sutviklingen)?\s+i\s+(.+)$",
+        (
+            r"^vis\s+(?:befolkningen|befolkning)"
+            r"(?:sutviklingen)?\s+i\s+(.+)$"
+        ),
+        (
+            r"^hvordan\s+har\s+(?:befolkningen|befolkning)"
+            r"(?:sutviklingen)?\s+i\s+(.+?)\s+utviklet\s+seg$"
+        ),
+        (
+            r"^(?:befolkningen|befolkning)"
+            r"(?:sutviklingen)?\s+i\s+(.+)$"
+        ),
     ]
 
     for pattern in single_patterns:
