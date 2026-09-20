@@ -231,6 +231,42 @@ def municipality_election_result(year: int, municipality: str):
     return municipality_area, parties_to_frame(municipality_data)
 
 
+MUNICIPALITY_ELECTION_YEARS = (2011, 2015, 2019, 2023)
+
+
+def municipality_party_history(
+    municipality: str,
+    party_code: str,
+    since: int | None = None,
+):
+    frames = []
+
+    for year in MUNICIPALITY_ELECTION_YEARS:
+        if since is not None and year < since:
+            continue
+
+        _, frame = municipality_election_result(
+            year=year,
+            municipality=municipality,
+        )
+
+        matches = frame[
+            frame["party_code"].str.casefold() == party_code.casefold()
+        ]
+
+        if matches.empty:
+            continue
+
+        frames.append(matches)
+
+    if not frames:
+        raise ValueError(
+            f"Fant ingen kommunevalgresultater for «{party_code}»."
+        )
+
+    return pd.concat(frames, ignore_index=True)
+
+
 STORTING_YEARS = (2009, 2013, 2017, 2021, 2025)
 
 

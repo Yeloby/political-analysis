@@ -357,3 +357,50 @@ def test_municipality_election_result(monkeypatch):
     assert row["party_code"] == "H"
     assert row["votes"] == 31945
     assert row["percent"] == pytest.approx(29.21273)
+
+
+def test_municipality_party_history(monkeypatch):
+    from political_analysis.providers.norway import elections
+
+    def fake_result(year, municipality):
+        assert municipality == "Trondheim"
+
+        frame = pd.DataFrame(
+            [
+                {
+                    "year": year,
+                    "party_code": "H",
+                    "party_name": "Høyre",
+                    "votes": year,
+                    "percent": 20.0,
+                },
+                {
+                    "year": year,
+                    "party_code": "A",
+                    "party_name": "Arbeiderpartiet",
+                    "votes": year + 1,
+                    "percent": 25.0,
+                },
+            ]
+        )
+
+        return ElectionArea(
+            number="5001",
+            name="Trondheim",
+            href=f"/{year}/ko/50/5001",
+        ), frame
+
+    monkeypatch.setattr(
+        elections,
+        "municipality_election_result",
+        fake_result,
+    )
+
+    frame = elections.municipality_party_history(
+        municipality="Trondheim",
+        party_code="H",
+        since=2015,
+    )
+
+    assert frame["year"].tolist() == [2015, 2019, 2023]
+    assert frame["party_code"].tolist() == ["H", "H", "H"]
