@@ -1,5 +1,6 @@
 import argparse
 
+from .analysis import filter_since, summarize_series
 from .providers.norway.ssb import SsbClient, municipality_population
 
 
@@ -59,25 +60,21 @@ def main():
         except ValueError as error:
             parser.error(str(error))
 
-        if args.since is not None:
-            years = frame["Tid_code"].astype(int)
-            frame = frame[years >= args.since]
+        frame = filter_since(frame, args.since)
 
-            if frame.empty:
-                parser.error(
-                    f"Ingen befolkningsdata fra {args.since}."
-                )
+        if frame.empty:
+            parser.error(
+                f"Ingen befolkningsdata fra {args.since}."
+            )
 
-        first = frame.iloc[0]
-        last = frame.iloc[-1]
+        summary = summarize_series(frame)
 
-        first_value = int(first["value"])
-        last_value = int(last["value"])
-        change = last_value - first_value
-        percent_change = (change / first_value) * 100
-
-        first_year = first.get("Tid", first.get("Tid_code", ""))
-        last_year = last.get("Tid", last.get("Tid_code", ""))
+        first_value = summary.first_value
+        last_value = summary.last_value
+        change = summary.change
+        percent_change = summary.percent_change
+        first_year = summary.first_year
+        last_year = summary.last_year
 
         print()
         print(
@@ -130,9 +127,7 @@ def main():
             except ValueError as error:
                 parser.error(str(error))
 
-            if args.since is not None:
-                years = frame["Tid_code"].astype(int)
-                frame = frame[years >= args.since]
+            frame = filter_since(frame, args.since)
 
             if frame.empty:
                 parser.error(
@@ -140,20 +135,14 @@ def main():
                     f"fra {args.since}."
                 )
 
-            first = frame.iloc[0]
-            last = frame.iloc[-1]
+            summary = summarize_series(frame)
 
-            first_value = int(first["value"])
-            last_value = int(last["value"])
-            change = last_value - first_value
-            percent_change = (change / first_value) * 100
-
-            first_year = first.get(
-                "Tid", first.get("Tid_code", "")
-            )
-            last_year = last.get(
-                "Tid", last.get("Tid_code", "")
-            )
+            first_value = summary.first_value
+            last_value = summary.last_value
+            change = summary.change
+            percent_change = summary.percent_change
+            first_year = summary.first_year
+            last_year = summary.last_year
 
             results.append(
                 (
