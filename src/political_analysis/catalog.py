@@ -1,0 +1,116 @@
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Dataset:
+    id: str
+    provider: str
+    title: str
+    topic: str
+    source: str
+    geography: tuple[str, ...]
+    time_resolution: str
+    dimensions: tuple[str, ...]
+    unit: str
+    description: str
+    period: str
+    measures: tuple[str, ...]
+    definition: str
+    limitations: tuple[str, ...] = ()
+
+
+DATASETS = (
+    Dataset(
+        id="ssb-07459-population",
+        provider="ssb",
+        title="Befolkning",
+        topic="demography",
+        source="SSB 07459",
+        geography=("municipality",),
+        time_resolution="year",
+        dimensions=("geography", "year"),
+        unit="persons",
+        description=(
+            "Folkemengde i norske kommuner over tid."
+        ),
+        period="1986–",
+        measures=("population",),
+        definition="Folkemengde etter SSBs kommunestatistikk.",
+    ),
+    Dataset(
+        id="valg-municipality-results",
+        provider="elections",
+        title="Kommunevalg",
+        topic="elections",
+        source="Valgdirektoratet",
+        geography=("municipality",),
+        time_resolution="election",
+        dimensions=("geography", "year", "party"),
+        unit="votes_percent",
+        description=(
+            "Partienes resultater ved norske kommunevalg."
+        ),
+        period="2011–",
+        measures=("votes", "votes_percent"),
+        definition=(
+            "Offisielle valgresultater etter kommune og parti."
+        ),
+        limitations=(
+            (
+                "Historisk dekning avhenger av tilgjengelige "
+                "valgdata."
+            ),
+        ),
+    ),
+    Dataset(
+        id="nav-registered-unemployed",
+        provider="nav",
+        title="Registrerte helt ledige",
+        topic="labour",
+        source="NAV",
+        geography=("municipality",),
+        time_resolution="month",
+        dimensions=("geography", "year", "month"),
+        unit="persons_and_percent",
+        description=(
+            "NAV-registrerte helt ledige etter kommune og måned."
+        ),
+        period="1995–2025",
+        measures=("unemployed", "percent"),
+        definition=(
+            "Personer registrert som helt ledige hos NAV."
+        ),
+        limitations=(
+            "Serien kan inneholde brudd i statistikken.",
+            "Må ikke forveksles med arbeidsledighet målt i AKU.",
+        ),
+    ),
+)
+
+
+def datasets() -> tuple[Dataset, ...]:
+    return DATASETS
+
+
+def find_datasets(query: str) -> list[Dataset]:
+    wanted = query.casefold().strip()
+
+    if not wanted:
+        return list(DATASETS)
+
+    return [
+        dataset
+        for dataset in DATASETS
+        if wanted in dataset.title.casefold()
+        or wanted in dataset.topic.casefold()
+        or wanted in dataset.description.casefold()
+        or wanted in dataset.provider.casefold()
+    ]
+
+
+def get_dataset(dataset_id: str) -> Dataset:
+    for dataset in DATASETS:
+        if dataset.id == dataset_id:
+            return dataset
+
+    raise KeyError(f"Ukjent datasett: {dataset_id}")
