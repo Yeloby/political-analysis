@@ -109,22 +109,38 @@ def parties_to_frame(data):
     return pd.DataFrame(rows)
 
 
-def find_storting_municipality(
-    year: int,
-    municipality: str,
-):
+_MUNICIPALITY_INDEX = {}
+
+
+def storting_municipality_index(year: int):
+    if year in _MUNICIPALITY_INDEX:
+        return _MUNICIPALITY_INDEX[year]
+
     client = ElectionClient()
     national = client.get(f"/{year}/st")
 
-    wanted = municipality.casefold().strip()
-    matches = []
+    index = {}
 
     for district in related_areas(national):
         district_data = client.get(district.href)
 
-        for area in related_areas(district_data):
-            if area.name.casefold() == wanted:
-                matches.append((district, area))
+        for municipality in related_areas(district_data):
+            key = municipality.name.casefold().strip()
+            index.setdefault(key, []).append(
+                (district, municipality)
+            )
+
+    _MUNICIPALITY_INDEX[year] = index
+    return index
+
+
+def find_storting_municipality(
+    year: int,
+    municipality: str,
+):
+    wanted = municipality.casefold().strip()
+    index = storting_municipality_index(year)
+    matches = index.get(wanted, [])
 
     if not matches:
         raise ValueError(
