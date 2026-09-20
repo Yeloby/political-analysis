@@ -28,6 +28,21 @@ def main():
         help="Vis befolkningsutvikling fra dette året",
     )
 
+    compare = sub.add_parser(
+        "compare",
+        help="Sammenlign befolkningsutvikling mellom kommuner",
+    )
+    compare.add_argument(
+        "places",
+        nargs="+",
+        help="Kommuner som skal sammenlignes",
+    )
+    compare.add_argument(
+        "--since",
+        type=int,
+        help="Sammenlign fra dette året",
+    )
+
     args = parser.parse_args()
 
     if args.command == "search":
@@ -97,6 +112,108 @@ def main():
         print(f"Periode: {first_year}–{last_year}")
         print(
             "Metode: SSBs aggregerte kommuneserie "
+            "for sammenhengende historiske tall."
+        )
+        print()
+
+        return 0
+
+    if args.command == "compare":
+        if len(args.places) < 2:
+            parser.error("Oppgi minst to kommuner som skal sammenlignes.")
+
+        results = []
+
+        for place in args.places:
+            try:
+                municipality, frame = municipality_population(place)
+            except ValueError as error:
+                parser.error(str(error))
+
+            if args.since is not None:
+                years = frame["Tid_code"].astype(int)
+                frame = frame[years >= args.since]
+
+            if frame.empty:
+                parser.error(
+                    f"Ingen befolkningsdata for {municipality.name} "
+                    f"fra {args.since}."
+                )
+
+            first = frame.iloc[0]
+            last = frame.iloc[-1]
+
+            first_value = int(first["value"])
+            last_value = int(last["value"])
+            change = last_value - first_value
+            percent_change = (change / first_value) * 100
+
+            first_year = first.get(
+                "Tid", first.get("Tid_code", "")
+            )
+            last_year = last.get(
+                "Tid", last.get("Tid_code", "")
+            )
+
+            results.append(
+                (
+                    municipality,
+                    first_year,
+                    last_year,
+                    first_value,
+                    last_value,
+                    change,
+                    percent_change,
+                )
+            )
+
+        periods = {
+            (result[1], result[2])
+            for result in results
+        }
+
+        print()
+
+        if len(periods) == 1:
+            first_year, last_year = next(iter(periods))
+            print(f"Sammenligning {first_year}–{last_year}")
+        else:
+            print("Sammenligning")
+
+        print("=" * 35)
+
+        for (
+            municipality,
+            first_year,
+            last_year,
+            first_value,
+            last_value,
+            change,
+            percent_change,
+        ) in results:
+            first_text = f"{first_value:,}".replace(",", " ")
+            last_text = f"{last_value:,}".replace(",", " ")
+            change_text = f"{change:+,}".replace(",", " ")
+            percent_text = (
+                f"{percent_change:+.1f}".replace(".", ",")
+            )
+
+            print()
+            print(municipality.name)
+            print(
+                f"{first_text} → {last_text} "
+                f"({first_year}–{last_year})"
+            )
+            print(
+                f"Endring: {change_text} personer "
+                f"({percent_text} %)"
+            )
+
+        print()
+        print("Kilde: Statistisk sentralbyrå")
+        print("Tabell: 07459")
+        print(
+            "Metode: SSBs aggregerte kommuneserier "
             "for sammenhengende historiske tall."
         )
         print()
