@@ -5,8 +5,9 @@ from gi.repository import GdkPixbuf, Gio, Gtk
 
 from .analysis import filter_since, summarize_series
 from .charts import population_figure
+from .providers.norway.elections import storting_party_history
 from .providers.norway.ssb import municipality_population
-from .questions import parse_population_question
+from .questions import ElectionQuestion, PopulationQuestion, parse_question
 
 
 class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
@@ -19,6 +20,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         self.set_default_size(1000, 760)
 
         self.current_series = []
+        self.current_kind = None
 
         box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
@@ -160,37 +162,129 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         self.export_button.connect("clicked", self.on_export)
         actions.append(self.export_button)
 
-        source = Gtk.Label(
+        self.source = Gtk.Label(
             label=(
                 "Kilde: Statistisk sentralbyrå · "
                 "Tabell 07459"
             )
         )
-        source.set_xalign(0)
-        box.append(source)
+        self.source.set_xalign(0)
+        box.append(self.source)
 
     def on_question(self, button):
         try:
-            question = parse_population_question(
+            question = parse_question(
                 self.question.get_text()
             )
         except ValueError as error:
             self.status.set_text(str(error))
             return
 
-        self.place.set_text(question.place)
+        if isinstance(question, PopulationQuestion):
+            self.place.set_text(question.place)
+            self.compare_place.set_text(
+                question.compare_place or ""
+            )
+            self.since.set_text(
+                str(question.since)
+                if question.since is not None
+                else ""
+            )
+            self.on_analyze(button)
+            return
 
-        self.compare_place.set_text(
-            question.compare_place or ""
+        if isinstance(question, ElectionQuestion):
+            self.on_election_question(question)
+            return
+
+    def on_election_question(self, question):
+        if question.municipality.casefold() != "trondheim":
+            self.status.set_text(
+                "Valgspørsmål støtter foreløpig Trondheim. "
+                "Flere kommuner kommer når valgkretsoppslaget er på plass."
+            )
+            return
+
+        self.status.set_text("Henter valgdata …")
+
+        try:
+            frame = storting_party_history(
+                district="Sør-Trøndelag",
+                municipality="Trondheim",
+                party_code=question.party_code,
+                since=question.since,
+            )
+        except Exception as error:
+            self.status.set_text(str(error))
+            return
+
+        first = frame.iloc[0]
+        last = frame.iloc[-1]
+
+        party_name = str(last["party_name"])
+        first_percent = float(first["percent"])
+        last_percent = float(last["percent"])
+        change = last_percent - first_percent
+
+        first_text = (
+            f"{first_percent:.2f}".replace(".", ",")
+        )
+        last_text = (
+            f"{last_percent:.2f}".replace(".", ",")
+        )
+        change_text = (
+            f"{change:+.2f}".replace(".", ",")
         )
 
-        self.since.set_text(
-            str(question.since)
-            if question.since is not None
-            else ""
+        self.status.set_text(
+            f"{party_name} · Trondheim · "
+            f"{int(first['year'])}–{int(last['year'])}"
         )
 
-        self.on_analyze(button)
+        self.result.set_markup(
+            f"<b>{party_name}</b>\n"
+            f"<span size='x-large' weight='bold'>"
+            f"{first_text} % → {last_text} %"
+            f"</span>\n\n"
+            f"Endring: {change_text} prosentpoeng\n\n"
+            f"Metode: Partiets andel av godkjente stemmer "
+            f"ved stortingsvalg i Trondheim."
+        )
+
+        self.current_series = [
+            (party_name, frame)
+        ]
+        self.current_kind = "election"
+        self.raw_button.set_sensitive(True)
+        self.export_button.set_sensitive(True)
+
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.plot(
+            frame["year"],
+            frame["percent"],
+            marker="o",
+        )
+        ax.set_title(
+            f"{party_name} i Trondheim – stortingsvalg"
+        )
+        ax.set_xlabel("Valgår")
+        ax.set_ylabel("Prosent")
+        ax.grid(True, alpha=0.25)
+        fig.tight_layout()
+
+        chart_path = "/tmp/political-analysis-chart.png"
+        fig.savefig(chart_path, dpi=180)
+        plt.close(fig)
+
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file(chart_path)
+        self.chart.set_pixbuf(pixbuf)
+        self.chart.set_visible(True)
+
+        self.source.set_text(
+            "Kilde: Valgdirektoratet · valgresultat.no"
+        )
 
     def on_analyze(self, button):
         place = self.place.get_text().strip()
@@ -258,6 +352,10 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         self.status.set_text(
             f"{municipality.name} · "
             f"{summary.first_year}–{summary.last_year}"
+        )
+
+        self.source.set_text(
+            "Kilde: Statistisk sentralbyrå · Tabell 07459"
         )
 
         if comparison:
@@ -331,6 +429,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             )
 
         self.current_series = chart_series
+        self.current_kind = "population"
         self.raw_button.set_sensitive(True)
         self.export_button.set_sensitive(True)
 
@@ -357,7 +456,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             transient_for=self,
             modal=False,
         )
-        window.set_default_size(700, 600)
+        window.set_default_size(760, 600)
 
         outer = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
@@ -372,7 +471,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         title = Gtk.Label()
         title.set_markup(
             "<span size='x-large' weight='bold'>"
-            "Rådata fra SSB"
+            "Rådata"
             "</span>"
         )
         title.set_xalign(0)
@@ -385,20 +484,72 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
 
         lines = []
 
-        for label, frame in self.current_series:
-            lines.append(label)
-            lines.append("År      Innbyggere")
-            lines.append("------------------")
+        if self.current_kind == "population":
+            for label, frame in self.current_series:
+                lines.append(label)
+                lines.append("År      Innbyggere")
+                lines.append("------------------")
 
-            for _, row in frame.iterrows():
-                year = str(row["Tid_code"])
-                value = int(row["value"])
-                value_text = f"{value:,}".replace(",", " ")
-                lines.append(f"{year:<8}{value_text:>10}")
+                for _, row in frame.iterrows():
+                    year = str(row["Tid_code"])
+                    value = int(row["value"])
+                    value_text = (
+                        f"{value:,}".replace(",", " ")
+                    )
+                    lines.append(
+                        f"{year:<8}{value_text:>10}"
+                    )
 
-            lines.append("")
+                lines.append("")
 
-        text.get_buffer().set_text("\n".join(lines))
+            source_text = (
+                "Kilde: Statistisk sentralbyrå · "
+                "Tabell 07459"
+            )
+
+        elif self.current_kind == "election":
+            for label, frame in self.current_series:
+                lines.append(label)
+                lines.append(
+                    "Valgår   Stemmer      Prosent"
+                )
+                lines.append(
+                    "-----------------------------"
+                )
+
+                for _, row in frame.iterrows():
+                    year = int(row["year"])
+                    votes = int(row["votes"])
+                    percent = float(row["percent"])
+
+                    votes_text = (
+                        f"{votes:,}".replace(",", " ")
+                    )
+                    percent_text = (
+                        f"{percent:.2f}"
+                        .replace(".", ",")
+                    )
+
+                    lines.append(
+                        f"{year:<8}"
+                        f"{votes_text:>8}"
+                        f"{percent_text:>12} %"
+                    )
+
+                lines.append("")
+
+            source_text = (
+                "Kilde: Valgdirektoratet · "
+                "valgresultat.no"
+            )
+
+        else:
+            lines.append("Ingen rådata tilgjengelig.")
+            source_text = ""
+
+        text.get_buffer().set_text(
+            "\n".join(lines)
+        )
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_vexpand(True)
@@ -406,12 +557,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         scroll.set_child(text)
         outer.append(scroll)
 
-        source = Gtk.Label(
-            label=(
-                "Kilde: Statistisk sentralbyrå · "
-                "Tabell 07459"
-            )
-        )
+        source = Gtk.Label(label=source_text)
         source.set_xalign(0)
         outer.append(source)
 
@@ -450,24 +596,65 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
 
         frames = []
 
-        for label, frame in self.current_series:
-            export = frame.copy()
-            export.insert(0, "Kommune", label)
+        if self.current_kind == "population":
+            for label, frame in self.current_series:
+                export = frame.copy()
+                export.insert(0, "Kommune", label)
 
-            export = export.rename(
-                columns={
-                    "Tid_code": "År",
-                    "value": "Innbyggere",
-                }
+                export = export.rename(
+                    columns={
+                        "Tid_code": "År",
+                        "value": "Innbyggere",
+                    }
+                )
+
+                columns = [
+                    column
+                    for column in [
+                        "Kommune",
+                        "År",
+                        "Innbyggere",
+                    ]
+                    if column in export.columns
+                ]
+
+                frames.append(export[columns])
+
+        elif self.current_kind == "election":
+            for label, frame in self.current_series:
+                export = frame.copy()
+
+                export = export.rename(
+                    columns={
+                        "year": "Valgår",
+                        "area_name": "Kommune",
+                        "party_code": "Partikode",
+                        "party_name": "Parti",
+                        "votes": "Stemmer",
+                        "percent": "Prosent",
+                    }
+                )
+
+                columns = [
+                    column
+                    for column in [
+                        "Valgår",
+                        "Kommune",
+                        "Partikode",
+                        "Parti",
+                        "Stemmer",
+                        "Prosent",
+                    ]
+                    if column in export.columns
+                ]
+
+                frames.append(export[columns])
+
+        else:
+            self.status.set_text(
+                "Ingen data å eksportere."
             )
-
-            columns = [
-                column
-                for column in ["Kommune", "År", "Innbyggere"]
-                if column in export.columns
-            ]
-
-            frames.append(export[columns])
+            return
 
         import pandas as pd
 
