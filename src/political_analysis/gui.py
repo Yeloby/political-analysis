@@ -1,6 +1,7 @@
 import gi
 
 gi.require_version("Gtk", "4.0")
+gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf, Gio, Gtk
 
 from .analysis import filter_since, summarize_series
@@ -246,6 +247,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
 
         first_change = first_end - first_start
         second_change = second_end - second_start
+        latest_difference = first_end - second_end
 
         def pct(value):
             return f"{value:.2f}".replace(".", ",")
@@ -279,6 +281,8 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             f"{pct(second_start)} % → {pct(second_end)} %"
             f"</span>\n"
             f"Endring: {pp(second_change)} prosentpoeng\n\n"
+            f"Forskjell i {last_year}: "
+            f"{pct(abs(latest_difference))} prosentpoeng\n\n"
             f"Metode: Partienes stemmeandeler ved "
             f"stortingsvalg i {question.municipality}."
         )
