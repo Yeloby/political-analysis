@@ -103,6 +103,13 @@ class ElectionQuestion:
 
 
 @dataclass(frozen=True)
+class MunicipalElectionQuestion:
+    party_code: str
+    municipality: str
+    since: int | None = None
+
+
+@dataclass(frozen=True)
 class ElectionComparisonQuestion:
     first_party_code: str
     second_party_code: str
@@ -199,6 +206,46 @@ def parse_election_comparison_question(
     )
 
 
+def parse_municipal_election_question(
+    text: str,
+) -> MunicipalElectionQuestion:
+    text = " ".join(text.strip().split())
+
+    year_match = re.search(
+        r"\b(?:siden|fra)\s+(\d{4})\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    since = int(year_match.group(1)) if year_match else None
+
+    cleaned = re.sub(
+        r"\s+(?:siden|fra)\s+\d{4}\b",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip(" .?")
+
+    match = re.fullmatch(
+        r"vis\s+(.+?)\s+kommunevalgresultater\s+i\s+(.+)",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+
+    if not match:
+        raise ValueError(
+            "Ugyldig kommunevalgspørsmål."
+        )
+
+    party = normalize_party(match.group(1))
+    municipality = match.group(2).strip()
+
+    return MunicipalElectionQuestion(
+        party_code=party,
+        municipality=municipality,
+        since=since,
+    )
+
+
 def parse_election_question(text: str) -> ElectionQuestion:
     text = " ".join(text.strip().split())
 
@@ -260,6 +307,7 @@ def parse_election_question(text: str) -> ElectionQuestion:
 def parse_question(text: str):
     parsers = [
         parse_election_comparison_question,
+        parse_municipal_election_question,
         parse_election_question,
         parse_population_question,
     ]

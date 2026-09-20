@@ -190,3 +190,34 @@ def test_router_prefers_election_comparison():
     assert question.second_party_code == "H"
     assert question.municipality == "Trondheim"
     assert question.since == 2009
+
+def test_municipal_election_question():
+    from political_analysis.questions import (
+        MunicipalElectionQuestion,
+        parse_municipal_election_question,
+    )
+
+    question = parse_municipal_election_question(
+        "Vis Høyres kommunevalgresultater i Trondheim siden 2011"
+    )
+
+    assert isinstance(question, MunicipalElectionQuestion)
+    assert question.party_code == "H"
+    assert question.municipality == "Trondheim"
+    assert question.since == 2011
+
+
+def test_parse_question_routes_municipal_election():
+    from political_analysis.questions import (
+        MunicipalElectionQuestion,
+        parse_question,
+    )
+
+    question = parse_question(
+        "Vis FrPs kommunevalgresultater i Trondheim siden 2011"
+    )
+
+    assert isinstance(question, MunicipalElectionQuestion)
+    assert question.party_code == "FRP"
+    assert question.municipality == "Trondheim"
+    assert question.since == 2011

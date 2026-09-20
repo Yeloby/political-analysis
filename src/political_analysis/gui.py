@@ -5,12 +5,16 @@ gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf, GLib, Gtk
 
 from .analysis import filter_since, summarize_series
-from .charts import population_figure
-from .providers.norway.elections import storting_party_history
+from .charts import election_figure, population_figure
+from .providers.norway.elections import (
+    municipality_party_history,
+    storting_party_history,
+)
 from .providers.norway.ssb import municipality_population
 from .questions import (
     ElectionComparisonQuestion,
     ElectionQuestion,
+    MunicipalElectionQuestion,
     PopulationQuestion,
     parse_question,
 )
@@ -203,6 +207,10 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             self.on_election_comparison(question)
             return
 
+        if isinstance(question, MunicipalElectionQuestion):
+            self.on_municipal_election_question(question)
+            return
+
         if isinstance(question, ElectionQuestion):
             self.on_election_question(question)
             return
@@ -322,6 +330,63 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         ax.legend()
         ax.grid(True, alpha=0.25)
         fig.tight_layout()
+
+        chart_path = "/tmp/political-analysis-chart.png"
+        fig.savefig(chart_path, dpi=180)
+        plt.close(fig)
+
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file(
+            chart_path
+        )
+        self.chart.set_pixbuf(pixbuf)
+        self.chart.set_visible(True)
+
+        self.source.set_text(
+            "Kilde: Valgdirektoratet · valgresultat.no"
+        )
+
+    def on_municipal_election_question(self, question):
+        import matplotlib.pyplot as plt
+
+        self.status.set_text("Henter kommunevalgdata …")
+
+        try:
+            frame = municipality_party_history(
+                municipality=question.municipality,
+                party_code=question.party_code,
+                since=question.since,
+            )
+        except (ValueError, KeyError) as error:
+            self.status.set_text(str(error))
+            return
+
+        first = frame.iloc[0]
+        last = frame.iloc[-1]
+
+        party_name = str(last["party_name"])
+        first_percent = float(first["percent"])
+        last_percent = float(last["percent"])
+        change = last_percent - first_percent
+
+        first_year = int(first["year"])
+        last_year = int(last["year"])
+
+        self.status.set_text(
+            f"{party_name} · {question.municipality} · "
+            f"{first_year}–{last_year}"
+        )
+
+        self.result.set_text(
+            f"{party_name} · {question.municipality}\n"
+            f"{first_year}: {first_percent:.2f} %\n"
+            f"{last_year}: {last_percent:.2f} %\n"
+            f"Endring: {change:+.2f} prosentpoeng"
+        )
+
+        fig = election_figure(
+            frame,
+            f"{party_name} i {question.municipality}",
+        )
 
         chart_path = "/tmp/political-analysis-chart.png"
         fig.savefig(chart_path, dpi=180)

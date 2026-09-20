@@ -42,3 +42,25 @@ def population_chart(
     plt.close(fig)
 
     return output
+
+
+def election_figure(frame, title: str):
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    years = frame["year"].astype(int)
+    values = frame["percent"].astype(float)
+
+    ax.plot(
+        years,
+        values,
+        marker="o",
+        markersize=4,
+    )
+
+    ax.set_title(title)
+    ax.set_xlabel("Valgår")
+    ax.set_ylabel("Stemmer (%)")
+    ax.grid(True, alpha=0.25)
+
+    fig.tight_layout()
+    return fig
