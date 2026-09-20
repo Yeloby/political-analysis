@@ -198,19 +198,11 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             return
 
     def on_election_question(self, question):
-        if question.municipality.casefold() != "trondheim":
-            self.status.set_text(
-                "Valgspørsmål støtter foreløpig Trondheim. "
-                "Flere kommuner kommer når valgkretsoppslaget er på plass."
-            )
-            return
-
         self.status.set_text("Henter valgdata …")
 
         try:
             frame = storting_party_history(
-                district="Sør-Trøndelag",
-                municipality="Trondheim",
+                municipality=question.municipality,
                 party_code=question.party_code,
                 since=question.since,
             )
@@ -237,7 +229,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         )
 
         self.status.set_text(
-            f"{party_name} · Trondheim · "
+            f"{party_name} · {question.municipality} · "
             f"{int(first['year'])}–{int(last['year'])}"
         )
 
@@ -267,7 +259,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             marker="o",
         )
         ax.set_title(
-            f"{party_name} i Trondheim – stortingsvalg"
+            f"{party_name} i {question.municipality} – stortingsvalg"
         )
         ax.set_xlabel("Valgår")
         ax.set_ylabel("Prosent")

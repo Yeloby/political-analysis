@@ -109,32 +109,66 @@ def parties_to_frame(data):
     return pd.DataFrame(rows)
 
 
+def find_storting_municipality(
+    year: int,
+    municipality: str,
+):
+    client = ElectionClient()
+    national = client.get(f"/{year}/st")
+
+    wanted = municipality.casefold().strip()
+    matches = []
+
+    for district in related_areas(national):
+        district_data = client.get(district.href)
+
+        for area in related_areas(district_data):
+            if area.name.casefold() == wanted:
+                matches.append((district, area))
+
+    if not matches:
+        raise ValueError(
+            f"Fant ikke kommunen «{municipality}» "
+            f"i stortingsvalget {year}."
+        )
+
+    if len(matches) > 1:
+        districts = ", ".join(
+            district.name
+            for district, _ in matches
+        )
+        raise ValueError(
+            f"Kommunen «{municipality}» finnes i flere "
+            f"valgdistrikter: {districts}"
+        )
+
+    return matches[0]
+
+
 def storting_municipality_result(
     year: int,
-    district: str,
     municipality: str,
 ):
     client = ElectionClient()
 
-    national = client.get(f"/{year}/st")
-    district_area = find_related_area(national, district)
-
-    district_data = client.get(district_area.href)
-    municipality_area = find_related_area(
-        district_data,
+    _, municipality_area = find_storting_municipality(
+        year,
         municipality,
     )
 
-    municipality_data = client.get(municipality_area.href)
+    municipality_data = client.get(
+        municipality_area.href
+    )
 
-    return municipality_area, parties_to_frame(municipality_data)
+    return municipality_area, parties_to_frame(
+        municipality_data
+    )
 
 
 STORTING_YEARS = (2009, 2013, 2017, 2021, 2025)
 
 
 def storting_party_history(
-    district: str,
     municipality: str,
     party_code: str,
     since: int | None = None,
@@ -147,7 +181,6 @@ def storting_party_history(
 
         area, frame = storting_municipality_result(
             year=year,
-            district=district,
             municipality=municipality,
         )
 
