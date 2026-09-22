@@ -1,6 +1,6 @@
 import pytest
 
-from political_analysis.questions import (
+from samfunnsdata.questions import (
     parse_population_question,
 )
 
@@ -54,7 +54,7 @@ def test_unknown_question():
         )
 
 
-from political_analysis.questions import (
+from samfunnsdata.questions import (
     normalize_party,
     parse_election_question,
 )
@@ -76,7 +76,7 @@ def test_election_question():
     assert question.since == 2009
 
 
-from political_analysis.questions import (
+from samfunnsdata.questions import (
     ElectionQuestion,
     PopulationQuestion,
     parse_question,
@@ -135,7 +135,7 @@ def test_short_election_question():
 
 
 def test_election_comparison_question():
-    from political_analysis.questions import (
+    from samfunnsdata.questions import (
         ElectionComparisonQuestion,
         parse_election_comparison_question,
     )
@@ -156,7 +156,7 @@ def test_election_comparison_question():
 
 
 def test_election_comparison_with_med():
-    from political_analysis.questions import (
+    from samfunnsdata.questions import (
         parse_election_comparison_question,
     )
 
@@ -172,7 +172,7 @@ def test_election_comparison_with_med():
 
 
 def test_router_prefers_election_comparison():
-    from political_analysis.questions import (
+    from samfunnsdata.questions import (
         ElectionComparisonQuestion,
         parse_question,
     )
@@ -192,7 +192,7 @@ def test_router_prefers_election_comparison():
     assert question.since == 2009
 
 def test_municipal_election_question():
-    from political_analysis.questions import (
+    from samfunnsdata.questions import (
         MunicipalElectionQuestion,
         parse_municipal_election_question,
     )
@@ -208,7 +208,7 @@ def test_municipal_election_question():
 
 
 def test_parse_question_routes_municipal_election():
-    from political_analysis.questions import (
+    from samfunnsdata.questions import (
         MunicipalElectionQuestion,
         parse_question,
     )
@@ -224,7 +224,7 @@ def test_parse_question_routes_municipal_election():
 
 
 def test_municipal_election_comparison_question():
-    from political_analysis.questions import (
+    from samfunnsdata.questions import (
         parse_municipal_election_comparison_question,
     )
 
@@ -240,7 +240,7 @@ def test_municipal_election_comparison_question():
 
 
 def test_parse_question_routes_municipal_election_comparison():
-    from political_analysis.questions import (
+    from samfunnsdata.questions import (
         MunicipalElectionComparisonQuestion,
         parse_question,
     )
@@ -261,7 +261,7 @@ def test_parse_question_routes_municipal_election_comparison():
 
 
 def test_unemployment_question():
-    from political_analysis.questions import (
+    from samfunnsdata.questions import (
         UnemploymentQuestion,
         parse_unemployment_question,
     )
@@ -277,7 +277,7 @@ def test_unemployment_question():
 
 
 def test_parse_question_routes_unemployment():
-    from political_analysis.questions import (
+    from samfunnsdata.questions import (
         UnemploymentQuestion,
         parse_question,
     )

@@ -1,4 +1,4 @@
-from political_analysis.cache import JsonCache
+from samfunnsdata.cache import JsonCache
 
 
 def test_cache_roundtrip(tmp_path):

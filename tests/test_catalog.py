@@ -1,6 +1,6 @@
 import pytest
 
-from political_analysis.catalog import (
+from samfunnsdata.catalog import (
     datasets,
     find_datasets,
     get_dataset,

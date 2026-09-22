@@ -7,7 +7,7 @@ from .providers.norway.ssb import SsbClient, municipality_population
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="political-analysis",
+        prog="samfunnsdata",
         description="Analyse norske offentlige data",
     )
 

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Samfunnsdata
+Comment=Offentlige data. Etterprøvbare svar.
+Exec=samfunnsdata-gui
+Icon=samfunnsdata
+Terminal=false
+Categories=Office;Education;
+StartupNotify=true
+Keywords=offentlige data;analyse;SSB;NAV;FHI;statistikk;

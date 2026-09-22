@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from political_analysis.providers.norway.nav import (
+from samfunnsdata.providers.norway.nav import (
     read_unemployment_csv,
 )
 
@@ -33,7 +33,7 @@ def test_read_unemployment_csv(tmp_path: Path):
 
 
 def test_municipality_unemployment(tmp_path: Path):
-    from political_analysis.providers.norway.nav import (
+    from samfunnsdata.providers.norway.nav import (
         municipality_unemployment,
     )
 
@@ -59,7 +59,7 @@ def test_municipality_unemployment(tmp_path: Path):
 
 
 def test_municipality_unemployment_unknown(tmp_path: Path):
-    from political_analysis.providers.norway.nav import (
+    from samfunnsdata.providers.norway.nav import (
         municipality_unemployment,
     )
 
@@ -85,7 +85,7 @@ def test_municipality_unemployment_unknown(tmp_path: Path):
 def test_municipality_unemployment_since(monkeypatch):
     import pandas as pd
 
-    from political_analysis.providers.norway import nav
+    from samfunnsdata.providers.norway import nav
 
     source = pd.DataFrame(
         {

@@ -1,6 +1,6 @@
 import pytest
 
-from political_analysis.providers.norway.ssb import (
+from samfunnsdata.providers.norway.ssb import (
     Municipality,
     find_municipality,
     jsonstat_to_frame,
@@ -44,7 +44,7 @@ def test_find_municipality_exact(monkeypatch):
     ]
 
     monkeypatch.setattr(
-        "political_analysis.providers.norway.ssb.municipalities",
+        "samfunnsdata.providers.norway.ssb.municipalities",
         lambda: municipalities,
     )
 
@@ -61,7 +61,7 @@ def test_find_municipality_partial(monkeypatch):
     ]
 
     monkeypatch.setattr(
-        "political_analysis.providers.norway.ssb.municipalities",
+        "samfunnsdata.providers.norway.ssb.municipalities",
         lambda: municipalities,
     )
 
@@ -72,7 +72,7 @@ def test_find_municipality_partial(monkeypatch):
 
 def test_find_municipality_missing(monkeypatch):
     monkeypatch.setattr(
-        "political_analysis.providers.norway.ssb.municipalities",
+        "samfunnsdata.providers.norway.ssb.municipalities",
         list,
     )
 

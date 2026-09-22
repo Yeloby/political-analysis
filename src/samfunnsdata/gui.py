@@ -24,11 +24,11 @@ from .questions import (
 )
 
 
-class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
+class SamfunnsdataWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(
             application=app,
-            title="Political Analysis",
+            title="Samfunnsdata",
         )
 
         self.set_default_size(1000, 760)
@@ -49,14 +49,14 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         title = Gtk.Label()
         title.set_markup(
             "<span size='xx-large' weight='bold'>"
-            "Political Analysis"
+            "Samfunnsdata"
             "</span>"
         )
         title.set_xalign(0)
         box.append(title)
 
         subtitle = Gtk.Label(
-            label="Analyser norske offentlige data"
+            label="Offentlige data. Etterprøvbare svar."
         )
         subtitle.set_xalign(0)
         box.append(subtitle)
@@ -319,7 +319,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         ax.grid(True, alpha=0.25)
         fig.tight_layout()
 
-        chart_path = "/tmp/political-analysis-chart.png"
+        chart_path = "/tmp/samfunnsdata-chart.png"
         fig.savefig(chart_path, dpi=180)
         plt.close(fig)
 
@@ -449,7 +449,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         ax.grid(True, alpha=0.25)
         fig.tight_layout()
 
-        chart_path = "/tmp/political-analysis-chart.png"
+        chart_path = "/tmp/samfunnsdata-chart.png"
         fig.savefig(chart_path, dpi=180)
         plt.close(fig)
 
@@ -567,7 +567,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         ax.grid(True, alpha=0.25)
         fig.tight_layout()
 
-        chart_path = "/tmp/political-analysis-chart.png"
+        chart_path = "/tmp/samfunnsdata-chart.png"
         fig.savefig(chart_path, dpi=180)
         plt.close(fig)
 
@@ -639,7 +639,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             f"{party_name} i {question.municipality}",
         )
 
-        chart_path = "/tmp/political-analysis-chart.png"
+        chart_path = "/tmp/samfunnsdata-chart.png"
         fig.savefig(chart_path, dpi=180)
         plt.close(fig)
 
@@ -722,7 +722,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         ax.grid(True, alpha=0.25)
         fig.tight_layout()
 
-        chart_path = "/tmp/political-analysis-chart.png"
+        chart_path = "/tmp/samfunnsdata-chart.png"
         fig.savefig(chart_path, dpi=180)
         plt.close(fig)
 
@@ -886,7 +886,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
             chart_title,
         )
 
-        chart_path = "/tmp/political-analysis-chart.png"
+        chart_path = "/tmp/samfunnsdata-chart.png"
         fig.savefig(chart_path, dpi=180)
 
         import matplotlib.pyplot as plt
@@ -1063,7 +1063,7 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
 
         dialog = Gtk.FileDialog()
         dialog.set_title("Eksporter CSV")
-        dialog.set_initial_name("political-analysis.csv")
+        dialog.set_initial_name("samfunnsdata.csv")
 
         dialog.save(
             self,
@@ -1197,19 +1197,19 @@ class PoliticalAnalysisWindow(Gtk.ApplicationWindow):
         )
 
 
-class PoliticalAnalysisApp(Gtk.Application):
+class SamfunnsdataApp(Gtk.Application):
     def __init__(self):
         super().__init__(
-            application_id="io.github.Yeloby.PoliticalAnalysis"
+            application_id="io.github.Yeloby.Samfunnsdata"
         )
 
     def do_activate(self):
-        window = PoliticalAnalysisWindow(self)
+        window = SamfunnsdataWindow(self)
         window.present()
 
 
 def main():
-    app = PoliticalAnalysisApp()
+    app = SamfunnsdataApp()
     return app.run(None)
 
 

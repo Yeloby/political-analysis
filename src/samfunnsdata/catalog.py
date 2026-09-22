@@ -22,6 +22,27 @@ class Dataset:
 
 DATASETS = (
     Dataset(
+        id="fhi-lmr-825-medicines",
+        provider="fhi",
+        title="Legemidler etter ATC-kode",
+        topic="health / medicines",
+        source="FHI Legemiddelregisteret (lmr), tabell 825",
+        geography=(),
+        time_resolution="year",
+        dimensions=("atc", "sex", "age", "year", "measure"),
+        unit="measure_dependent",
+        description="Legemiddelstatistikk etter ATC-kode, kjønn, alder og år.",
+        period="2004– (tilgjengelige år hentes fra FHI)",
+        measures=("users", "users_per_1000", "ddd", "population"),
+        definition="FHI-tabellen «Per ATC-kode», med måltall levert av FHI.",
+        limitations=(
+            "Brukertall skal ikke summeres på tvers av ATC-koder.",
+            "Manglende og skjulte observasjoner må beholde status.",
+            "Enhet avhenger av valgt måltall.",
+        ),
+        aliases=("legemidler", "legemiddel", "medisiner", "ATC"),
+    ),
+    Dataset(
         id="ssb-07459-population",
         provider="ssb",
         title="Befolkning",

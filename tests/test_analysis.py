@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from political_analysis.analysis import filter_since, summarize_series
+from samfunnsdata.analysis import filter_since, summarize_series
 
 
 def sample_frame():

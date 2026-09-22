@@ -21,22 +21,19 @@ mkdir -p "$HOME/.local/bin"
 mkdir -p "$HOME/.local/share/applications"
 mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"
 
-ln -sf "$VENV/bin/political-analysis" \
-  "$HOME/.local/bin/political-analysis"
+ln -sf "$VENV/bin/samfunnsdata" \
+  "$HOME/.local/bin/samfunnsdata"
 
-ln -sf "$VENV/bin/political-analysis-gui" \
-  "$HOME/.local/bin/political-analysis-gui"
-
-ln -sf "$VENV/bin/pol" \
-  "$HOME/.local/bin/pol"
+ln -sf "$VENV/bin/samfunnsdata-gui" \
+  "$HOME/.local/bin/samfunnsdata-gui"
 
 install -m 644 \
-  "$ROOT/packaging/political-analysis.desktop" \
-  "$HOME/.local/share/applications/political-analysis.desktop"
+  "$ROOT/packaging/samfunnsdata.desktop" \
+  "$HOME/.local/share/applications/samfunnsdata.desktop"
 
 install -m 644 \
-  "$ROOT/assets/political-analysis.svg" \
-  "$HOME/.local/share/icons/hicolor/scalable/apps/political-analysis.svg"
+  "$ROOT/assets/samfunnsdata.svg" \
+  "$HOME/.local/share/icons/hicolor/scalable/apps/samfunnsdata.svg"
 
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database \
@@ -49,7 +46,7 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
 fi
 
 echo
-echo "Political Analysis installed."
-echo "CLI: political-analysis or pol"
-echo "GUI: political-analysis-gui"
-echo "Application launcher: Political Analysis"
+echo "Samfunnsdata installed."
+echo "CLI: samfunnsdata"
+echo "GUI: samfunnsdata-gui"
+echo "Application launcher: Samfunnsdata"

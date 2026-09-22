@@ -3,7 +3,7 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "political-analysis"
+name = "samfunnsdata"
 version = "0.1.0"
 description = "Open-source analysis tool for Norwegian public data"
 readme = "README.md"
@@ -24,9 +24,8 @@ dev = [
 ]
 
 [project.scripts]
-political-analysis = "political_analysis.cli:main"
-political-analysis-gui = "political_analysis.gui:main"
-pol = "political_analysis.cli:main"
+samfunnsdata = "samfunnsdata.cli:main"
+samfunnsdata-gui = "samfunnsdata.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

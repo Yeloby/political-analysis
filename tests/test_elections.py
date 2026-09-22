@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from political_analysis.providers.norway.elections import (
+from samfunnsdata.providers.norway.elections import (
     ElectionArea,
     find_related_area,
     parties_to_frame,
@@ -10,7 +10,7 @@ from political_analysis.providers.norway.elections import (
 
 @pytest.fixture(autouse=True)
 def clear_municipality_index():
-    from political_analysis.providers.norway import elections
+    from samfunnsdata.providers.norway import elections
 
     elections._MUNICIPALITY_INDEX.clear()
     elections._MUNICIPALITY_ELECTION_INDEX.clear()
@@ -96,7 +96,7 @@ def test_parties_to_frame():
 
 
 def test_find_storting_municipality(monkeypatch):
-    from political_analysis.providers.norway import elections
+    from samfunnsdata.providers.norway import elections
 
     responses = {
         "/2025/st": {
@@ -158,7 +158,7 @@ def test_find_storting_municipality(monkeypatch):
 
 
 def test_find_storting_municipality_missing(monkeypatch):
-    from political_analysis.providers.norway import elections
+    from samfunnsdata.providers.norway import elections
 
     responses = {
         "/2025/st": {
@@ -204,7 +204,7 @@ def test_find_storting_municipality_missing(monkeypatch):
 
 
 def test_find_municipality_election_area(monkeypatch):
-    from political_analysis.providers.norway import elections
+    from samfunnsdata.providers.norway import elections
 
     responses = {
         "/2023/ko": {
@@ -249,7 +249,7 @@ def test_find_municipality_election_area(monkeypatch):
 
 
 def test_find_municipality_election_area_missing(monkeypatch):
-    from political_analysis.providers.norway import elections
+    from samfunnsdata.providers.norway import elections
 
     responses = {
         "/2023/ko": {
@@ -285,7 +285,7 @@ def test_find_municipality_election_area_missing(monkeypatch):
 
 
 def test_municipality_election_result(monkeypatch):
-    from political_analysis.providers.norway import elections
+    from samfunnsdata.providers.norway import elections
 
     responses = {
         "/2023/ko": {
@@ -360,7 +360,7 @@ def test_municipality_election_result(monkeypatch):
 
 
 def test_municipality_party_history(monkeypatch):
-    from political_analysis.providers.norway import elections
+    from samfunnsdata.providers.norway import elections
 
     def fake_result(year, municipality):
         assert municipality == "Trondheim"
