@@ -59,10 +59,7 @@ Grafen har hull ved manglende/statusmerkede punkter, mens CSV beholder
 originalverdier og status. Valgsammenligning bruker felles valgår og avviser
 manglende/statusmerkede endepunkter; dette er ikke endret i D.
 
-`AnalysisResult.schema_version` og `DataReceipt.schema_version` er begge `"1"`.
-Adapter-/beregningskontrakten identifiseres med `ssb-population/1` og appversjonen
-registreres. Ukjente skjemaversjoner avvises ved innlesing. Brudd i feltenes
-betydning eller struktur krever ny versjon og eksplisitt lesestøtte.
+`AnalysisResult.schema_version` er fast `"1"` i dagens implementasjon. `DataReceipt.schema_version` har standardverdi `"2"`, og koden i `results.py` godtar både `"1"` og `"2"` ved lesing, men avviser andre verdier. Adapter-/beregningskontrakten identifiseres med `ssb-population/1`, og appversjonen registreres. Ukjente skjemaversjoner avvises ved innlesing. Brudd i feltenes betydning eller struktur krever ny versjon og eksplisitt lesestøtte.
 
 `DataReceipt` har kilde, måltall/enhet, serier, strukturerte transformasjoner,
 advarsler og brukstidspunkt. Stegene beskriver kommunevalg, lokal periodeavgrensning,

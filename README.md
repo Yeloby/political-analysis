@@ -25,7 +25,7 @@ samfunnsdata compare Trondheim Bergen --since 2010
 samfunnsdata search "befolkning"
 ```
 
-Dette er reelle kommandoer i projektet. De viser hvordan Samfunnsdata bruker en
+Dette er reelle kommandoer i prosjektet. De viser hvordan Samfunnsdata bruker en
 lokalt validert analyseplan for å hente og presentere et kjent, støttet datasett
 uten å gjøre vilkårlige antagelser om andre tabeller eller kilder.
 
@@ -38,7 +38,7 @@ kilder og analyser:
 - NAV: registrerte helt ledige
 - Valgdirektoratet: partivalgssammenligninger der programmet faktisk har
   implementert støtten
-- FHI: helsestatistikk og legemiddeldata via lokale Python-/API-flyter
+- FHI: helsestatistikk og legemiddeldata via lokale Python- og API-løsninger
 
 Dette er ikke et prosjekt som lover støtte for alle offentlige data. Det er et
 lokalt, etterprøvbart verktøy med klare grenser.
@@ -78,7 +78,7 @@ datasettlandskap. Det omfatter blant annet:
 - Udir / HK-dir / DBH
 - relevante miljø-, transport-, fiskeri- og andre offentlige datakilder
 
-Dette er et bredt horisont, ikke en liste over noe som allerede er støttet. Det er
+Dette er en bred horisont, ikke en liste over noe som allerede er støttet. Det er
 et mål for hvor Samfunnsdata kan bli nyttig, uten at det blir et løfte om å
 støtte alt fra hver enkelt myndighet.
 
@@ -90,7 +90,7 @@ lagres i brukerens lokale miljø, og programmet har en eksplisitt `--cache-only`
 modus som stopper nettverk uten å skjule hvilke datakilder som faktisk ble brukt.
 
 Det betyr ikke at programmet er en anonymitetstjeneste eller en fullstendig
-frakoblet løsning. Det betyr at nettverk, cache og datakilder blir håndtert med
+frakoblet løsning. Det betyr at nettverk, cache og datakilder håndteres med
 klare grenser og tydelig dokumentasjon.
 
 ## Kom i gang
@@ -119,7 +119,7 @@ etterprøvbare svar som er tydelig knyttet til en reell datakilde.
 
 Det er ikke et løfte om å støtte alle offentlige data eller å automatisere alt fra
 alle myndigheter. Det er et arbeid mot mer forståelige, mer åpne og mer
-etterprøvbare analyser innenfor et avgrenset, ryddig sett av datasett.
+etterprøvbare analyser innenfor et avgrenset og ryddig sett av datasett.
 
 Se [docs/architecture.md](docs/architecture.md) for mer om arkitekturen, og
 [docs/privacy.md](docs/privacy.md) for personvern og nettverksmodell.
