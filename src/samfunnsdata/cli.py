@@ -1,13 +1,9 @@
 import argparse
 
-from .analysis import (
-    filter_since,
-    format_number,
-    observation_status,
-    observation_value,
-    summarize_series,
-)
+from .analysis import format_number
 from .charts import population_chart
+from .population import analyze_population
+from .population_presentation import export_receipt, observation_text, summary_text
 from .providers.norway.ssb import SsbClient, municipality_population
 
 
@@ -61,6 +57,10 @@ def main():
         help="Lagre sammenligningen som PNG-graf",
     )
 
+    for command_parser in (population, compare):
+        command_parser.add_argument("--receipt", metavar="PATH",
+                                    help="Lagre datakvittering som separat JSON-fil")
+
     args = parser.parse_args()
 
     if args.command == "search":
@@ -73,58 +73,37 @@ def main():
 
     if args.command == "population":
         try:
-            municipality, frame = municipality_population(args.place)
+            result = analyze_population([args.place], args.since, provider=municipality_population)
         except ValueError as error:
             parser.error(str(error))
-
-        frame = filter_since(frame, args.since)
-
-        if frame.empty:
-            parser.error(
-                f"Ingen befolkningsdata fra {args.since}."
-            )
-
-        summary = summarize_series(frame)
-
+        series = result.series[0]
+        municipality = series.selection
+        summary = series.derived_facts
         first_value = summary.first_value
         last_value = summary.last_value
-        change = summary.change
-        percent_change = summary.percent_change
         first_year = summary.first_year
         last_year = summary.last_year
 
         print()
         print(
-            f"{municipality.name}: "
+            f"{series.name}: "
             f"{format_number(first_value)} → {format_number(last_value)} "
             f"({first_year}–{last_year})"
             .replace(",", " ")
         )
-        change_text = format_number(change, "+,")
-        percent_text = format_number(percent_change, "+.1f")
-
-        print(
-            f"Endring: {change_text} personer "
-            f"({percent_text} %)"
-        )
+        print(summary_text(series)[1])
 
         print()
-        print(f"Befolkningsutvikling i {municipality.name}")
+        print(f"Befolkningsutvikling i {series.name}")
         print("=" * 35)
 
-        for _, row in frame.iterrows():
-            year = row.get("Tid", row.get("Tid_code", ""))
-            value = observation_value(row)
-            status = observation_status(row)
-            text = format_number(value, ",.0f")
-            if status is not None:
-                text += f" (status: {status}; kildeverdi: {row['value']})"
-            print(f"{year}: {text}")
+        for observation in series.source_observations:
+            print(f"{observation.period_label}: {observation_text(observation)}")
 
         print()
         print("Kilde: Statistisk sentralbyrå")
         print("Tabell: 07459")
-        print(f"Kommune: {municipality.name} ({municipality.code})")
+        print(f"Kommune: {series.name} ({municipality.municipality_code})")
         print(f"Periode: {first_year}–{last_year}")
         print(
             "Metode: SSBs aggregerte kommuneserie "
@@ -138,13 +117,16 @@ def main():
                 f"{first_year}-{last_year}.png"
             )
             population_chart(
-                [(municipality.name, frame)],
+                [(series.name, series)],
                 output,
-                f"Befolkningsutvikling i {municipality.name}",
+                f"Befolkningsutvikling i {series.name}",
             )
             print(f"Graf: {output}")
 
         print()
+
+        if args.receipt:
+            export_receipt(result.receipt, args.receipt)
 
         return 0
 
@@ -152,52 +134,12 @@ def main():
         if len(args.places) < 2:
             parser.error("Oppgi minst to kommuner som skal sammenlignes.")
 
-        results = []
-        chart_series = []
-
-        for place in args.places:
-            try:
-                municipality, frame = municipality_population(place)
-            except ValueError as error:
-                parser.error(str(error))
-
-            frame = filter_since(frame, args.since)
-
-            if frame.empty:
-                parser.error(
-                    f"Ingen befolkningsdata for {municipality.name} "
-                    f"fra {args.since}."
-                )
-
-            summary = summarize_series(frame)
-
-            first_value = summary.first_value
-            last_value = summary.last_value
-            change = summary.change
-            percent_change = summary.percent_change
-            first_year = summary.first_year
-            last_year = summary.last_year
-
-            chart_series.append(
-                (municipality.name, frame)
-            )
-
-            results.append(
-                (
-                    municipality,
-                    first_year,
-                    last_year,
-                    first_value,
-                    last_value,
-                    change,
-                    percent_change,
-                )
-            )
-
-        periods = {
-            (result[1], result[2])
-            for result in results
-        }
+        try:
+            result = analyze_population(args.places, args.since, provider=municipality_population)
+        except ValueError as error:
+            parser.error(str(error))
+        chart_series = [(s.name, s) for s in result.series]
+        periods = {(s.derived_facts.first_year, s.derived_facts.last_year) for s in result.series}
 
         print()
 
@@ -209,32 +151,13 @@ def main():
 
         print("=" * 35)
 
-        for (
-            municipality,
-            first_year,
-            last_year,
-            first_value,
-            last_value,
-            change,
-            percent_change,
-        ) in results:
-            first_text = format_number(first_value, ",")
-            last_text = format_number(last_value, ",")
-            change_text = format_number(change, "+,")
-            percent_text = (
-                format_number(percent_change, "+.1f")
-            )
-
+        for series in result.series:
+            facts = series.derived_facts
+            values, change = summary_text(series)
             print()
-            print(municipality.name)
-            print(
-                f"{first_text} → {last_text} "
-                f"({first_year}–{last_year})"
-            )
-            print(
-                f"Endring: {change_text} personer "
-                f"({percent_text} %)"
-            )
+            print(series.name)
+            print(f"{values} ({facts.first_year}–{facts.last_year})")
+            print(change)
 
         print()
         print("Kilde: Statistisk sentralbyrå")
@@ -245,10 +168,7 @@ def main():
         )
 
         if args.chart:
-            years = {
-                (result[1], result[2])
-                for result in results
-            }
+            years = periods
 
             if len(years) == 1:
                 chart_first, chart_last = next(iter(years))
@@ -267,6 +187,9 @@ def main():
             print(f"Graf: {output}")
 
         print()
+
+        if args.receipt:
+            export_receipt(result.receipt, args.receipt)
 
         return 0
 

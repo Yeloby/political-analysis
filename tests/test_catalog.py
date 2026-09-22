@@ -71,3 +71,15 @@ def test_find_dataset_from_population_question():
 
 def test_catalog_search_returns_no_irrelevant_match():
     assert find_datasets("bananer romskip pingvin") == []
+
+
+def test_parliament_catalog_matches_implemented_adapter():
+    import importlib
+
+    dataset = get_dataset("valg-parliament-results")
+    assert dataset.queryable
+    assert dataset.interfaces == ("python", "gui")
+    module, name = dataset.adapter.split(":")
+    assert callable(getattr(importlib.import_module(module), name))
+    assert find_datasets("stortingsvalg")[0] == dataset
+    assert dataset.provider == "elections"

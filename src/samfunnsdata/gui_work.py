@@ -1,7 +1,7 @@
 """Existing GUI calculations/presentation preparation, without GTK widgets.
 
-Providers and statistical rules are unchanged. Return values are private GUI
-presentation dictionaries, not a new provider/application result contract.
+Population uses the application result contract. Other analyses retain private
+presentation dictionaries. Providers and statistical rules remain unchanged.
 """
 
 import tempfile
@@ -16,20 +16,21 @@ import pandas as pd
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from . import population_presentation
 from .analysis import (
     align_election_series,
-    filter_since,
     format_number,
     observation_value,
-    summarize_series,
 )
 from .charts import election_figure, population_figure
+from .population import analyze_population
 from .providers.norway.elections import (
     municipality_party_history,
     storting_party_history,
 )
 from .providers.norway.nav import municipality_unemployment_since
 from .providers.norway.ssb import municipality_population
+from .results import PopulationSeries
 
 _chart_lock = Lock()
 # NAV's existing FileCache publishes CSV files in place. Keep GUI fetch+parse
@@ -61,56 +62,22 @@ def render_chart(fig):
 
 
 def population(token, place, compare_place, since):
-    view = {}
-    token.checkpoint()
-    municipality, frame = municipality_population(place)
-    token.checkpoint()
-    frame = filter_since(frame, since)
-    if frame.empty:
-        raise ValueError("Ingen data for valgt periode.")
-    summary = summarize_series(frame)
-    comparison = None
-    if compare_place:
-        token.checkpoint()
-        compare_municipality, compare_frame = municipality_population(compare_place)
-        token.checkpoint()
-        compare_frame = filter_since(compare_frame, since)
-        if compare_frame.empty:
-            raise ValueError("Ingen data for sammenligningskommunen i valgt periode.")
-        compare_summary = summarize_series(compare_frame)
-        comparison = (compare_municipality, compare_frame, compare_summary)
-    first = format_number(summary.first_value, ",")
-    last = format_number(summary.last_value, ",")
-    change = format_number(summary.change, "+,")
-    percent = format_number(summary.percent_change, "+.1f")
-    view["status"] = f"{municipality.name} · {summary.first_year}–{summary.last_year}"
-    view["source"] = "Kilde: Statistisk sentralbyrå · Tabell 07459"
-    if comparison:
-        compare_municipality, compare_frame, compare_summary = comparison
-        compare_first = format_number(compare_summary.first_value, ",")
-        compare_last = format_number(compare_summary.last_value, ",")
-        compare_change = format_number(compare_summary.change, "+,")
-        compare_percent = format_number(compare_summary.percent_change, "+.1f")
-        view["result"] = (
-            True,
-            f"<b>{municipality.name}</b>\n<span size='x-large' weight='bold'>{first} → {last}</span>\nEndring: {change} personer ({percent} %)\n\n<b>{compare_municipality.name}</b>\n<span size='x-large' weight='bold'>{compare_first} → {compare_last}</span>\nEndring: {compare_change} personer ({compare_percent} %)\n\nMetode: SSBs aggregerte kommuneserier for sammenhengende historiske tall.",
-        )
-        chart_series = [
-            (municipality.name, frame),
-            (compare_municipality.name, compare_frame),
-        ]
-        chart_title = f"{municipality.name} og {compare_municipality.name}"
-    else:
-        view["result"] = (
-            True,
-            f"<span size='x-large' weight='bold'>{first} → {last}</span>\n\nEndring: {change} personer ({percent} %)\n\nMetode: SSBs aggregerte kommuneserie for sammenhengende historiske tall.",
-        )
-        chart_series = [(municipality.name, frame)]
-        chart_title = f"Befolkningsutvikling i {municipality.name}"
-    view["series"] = chart_series
-    view["kind"] = "population"
+    places = [place, compare_place] if compare_place else [place]
+    result = analyze_population(places, since, provider=municipality_population,
+                                checkpoint=token.checkpoint)
+    first = result.series[0]
+    facts = first.derived_facts
+    chart_series = [(s.name, s) for s in result.series]
+    view = {
+        "analysis_result": result,
+        "status": f"{first.name} · {facts.first_year}–{facts.last_year}",
+        "source": "Kilde: Statistisk sentralbyrå · Tabell 07459",
+        "result": (True, population_presentation.gui_summary(result)),
+        "series": chart_series,
+        "kind": "population",
+    }
     with chart_session(token):
-        fig = population_figure(chart_series, chart_title)
+        fig = population_figure(chart_series, result.title)
         view["chart"] = render_chart(fig)
     token.checkpoint()
     return view
@@ -400,6 +367,9 @@ def raw_text(token, kind, series):
     token.checkpoint()
     lines = []
 
+    if kind == "population" and series and isinstance(series[0][1], PopulationSeries):
+        return population_presentation.raw_text(series)
+
     if kind == "population":
         for label, frame in series:
             token.checkpoint()
@@ -479,6 +449,9 @@ def raw_text(token, kind, series):
 def export_csv(token, kind, series, path):
     token.checkpoint()
     frames = []
+
+    if kind == "population" and series and isinstance(series[0][1], PopulationSeries):
+        return population_presentation.export_csv(series, path, checkpoint=token.checkpoint)
 
     if kind == "population":
         for label, frame in series:
@@ -581,3 +554,15 @@ def export_csv(token, kind, series, path):
     )
 
     return f"Eksportert til {path}"
+
+
+def receipt_text(token, receipt):
+    token.checkpoint()
+    text = population_presentation.receipt_text(receipt)
+    token.checkpoint()
+    return text
+
+
+def export_receipt(token, receipt, path):
+    token.checkpoint()
+    return population_presentation.export_receipt(receipt, path, checkpoint=token.checkpoint)

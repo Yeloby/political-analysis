@@ -1,167 +1,130 @@
-# Trinnvis arkitektur for Samfunnsdata
+# Samfunnsdata: implementert arkitektur etter milepæl D
 
-Status: forslag med et lite implementert fundament. Ingen nye datakilder eller
-analyseadaptere innføres i denne milepælen.
+Samfunnsdata er en lokal Python/GTK-applikasjon. Parseren gjenkjenner bestemte
+spørsmålsformer; katalogen beskriver et lite utvalg datasett. En katalogoppføring
+med SUPPORTED betyr eksplisitt adapter og grensesnitt, ikke støtte for vilkårlige
+utvalg. DISCOVERED og PLANNED er ikke kjørbare. FHI-legemidler er fortsatt bare
+Python/API. NAV, kommunevalg og stortingsvalg beholder sine eksisterende analyseveier.
 
-## Dagens arkitektur og konkrete begrensninger
+## Befolkning: én applikasjonsgrense
 
-- SSB har egen klient, tabellsøk, kodelister og JSON-stat-konverter. Befolkning
-  er en spesialisert funksjon; generisk tabellsøk gjør ikke alle tabeller til
-  støttede analyser. Konverteren bevarer koder/etiketter, men ikke observasjonsstatus.
-- FHI skiller generisk HTTP/JSON-stat2 fra legemiddelsemantikk. Status,
-  dimensjonsmetadata, enheter og kildeproveniens følger legemiddelrammen i attrs.
-- NAV leser en bestemt CSV med leverandørspesifikk tegnkoding, kolonnenavn og
-  duplikatvalg. URL/årgang er statisk. Duplikatvalget bruker fillna(0) internt;
-  dette er ikke en generell regel for behandling av manglende observasjoner.
-- Valg har egen navigasjon gjennom områder, normalisering og eksplisitte
-  årgangslister. Katalogen dekker foreløpig kommunevalg; implementert
-  stortingsvalganalyse mangler en egen katalogoppføring.
-- Katalogen var en statisk tuple med ordsøk. Den er ikke et inventar over alt
-  som er offentlig tilgjengelig. Geografitype «municipality» verifiserer ikke
-  at en bestemt kommunekode finnes i alle årganger.
-- analysis.py er befolkningsspesifikk: forventer Tid-kolonner, heltall og
-  ikke-null startverdi. Skal ikke brukes som universell statistikkmotor.
-- Spørsmålsparseren er en samling eksplisitte regulære uttrykk. Behold den for
-  eksisterende spørsmål; metadataoppdagelse skal få en egen vei.
-- GUI-en inneholder datahenting, beregninger, diagrammer og eksport i samme
-  vindu. Nettverksarbeid skjer synkront og kan blokkere GTK. Dette endres ikke her.
-- JsonCache/FileCache hasher forespørsler og lagrer payload, men mangler TTL,
-  hentetid, kildeversjon, innholds-hash i manifest og atomisk oppdatering.
-- CSV-eksport velger noen resultatkolonner. Den bevarer ikke attrs eller en
-  full kvittering. «Rådata» i GUI betyr utvalgte analyseobservasjoner, ikke
-  nødvendigvis den originale HTTP-responsen.
+```text
+GUI-spørsmål / manuelle valg          CLI population / compare
+             |                               |
+      parser og routing                      |
+             |                               |
+      GuiJobs -> gui_work -------------------+
+                             |
+                 population.analyze_population
+                             |
+          eksisterende SSB municipality_population
+          -> kommunenavn/kodeliste -> 07459 -> JsonCache/HTTP
+          -> JSON-stat -> dataframe med status og metadata
+                             |
+          filter_since + summarize_series (eksisterende regler)
+                             |
+                  AnalysisResult + DataReceipt
+                             |
+           presentasjon / graf / rådata / CSV / JSON
+```
 
-## Implementert fundament
+`results.py` har frosne, enkle dataklasser for første befolkningsvertikal.
+`AnalysisResult` har tittel, skjemaversjon, deklarative graf-/tabellhint og
+`DataReceipt`. Serier og advarsler eksponeres gjennom resultatet, uten duplisert
+sannhetskilde. Dette er ikke en universell providerrespons. Ingen provider får
+ny signatur, og rå providerdata presses ikke inn i et nytt felles dataframeformat.
 
-Source beskriver myndighet og offisiell nettside. Dataset beholder eksisterende
-felt og har additive felt for adapterreferanse, grensesnitt, tabell-ID,
-kilde-/tilgangs-URL, format, oppdatering, metode, seriebrudd og valgfri status som
-offisiell statistikk. None betyr ukjent; tomt metadatafelt dokumenterer ikke
-at en kilde mangler seriebrudd. Ukjent NAV-download-URL i katalogen fylles ikke
-med en antatt API-adresse; eksisterende provider beholder den verifiserte fil-URL-en.
+Hver `PopulationSeries` har stabil identitet innen resultatet, kommunenavn/-kode,
+forespurt utvalg, kildens returnerte periode før lokalt årsfilter,
+`source_observations`, `derived_facts`, status-tilgjengelighet, proveniens og
+kildemetadata. Sammenligning støtter et vilkårlig antall navngitte serier i
+applikasjonslaget og CLI; eksisterende GUI/parser har fortsatt to kommunevalg.
+Kommunene beholder egne perioder. Den eldre befolkningssammenligningen viste
+seriene side om side uten å beregne en differanse mellom kommunene; det beholdes.
+Ulike perioder gir en eksplisitt advarsel i kvitteringen.
 
-Støttestatus er eksplisitt og har sikker standard PLANNED:
+## Kildeverdier, beregninger og versjoner
 
-- SUPPORTED: en implementert, navngitt adapter og oppgitte grensesnitt finnes.
-  Det betyr bare det konkrete datasettet og funksjonens utvalg, ikke alle mulige
-  spørringer eller alle data hos myndigheten. Tester kontrollerer at de registrerte
-  adapterreferansene faktisk peker på funksjoner.
-- DISCOVERED: metadata om et faktisk datasett er katalogisert, men ingen støttet
-  analyse-/henteadapter er registrert. Ingen kjørehandling skal vises.
-- PLANNED: ikke støttet. Verken tilgjengelighet eller maskinlesbarhet er bekreftet.
+`Observation.source_value` er kildeverdien (manglende representeres som `None`).
+Rå statuskode og periodekode/-etikett beholdes. `usable_value` er verdien etter
+analysens konservative status-/tallkontroll, brukt i graf og tekst. Det er ikke
+et nytt kildetall. Alle ikke-tomme statuskoder utelates fra ukvalifiserte
+beregninger, uten at ukjente koder gis en oppdiktet betydning.
+`SeriesSummary` under `derived_facts` inneholder de faktiske endepunktene,
+kvalifiserte endpointverdier og beregnet absolutt/prosentvis endring.
 
-Katalogens adapterstreng er dokumentasjon, ikke dynamisk kodekjøring.
-Importer aldri adapterstier hentet fra eksterne metadata. Fremtidig dispatch bruker
-et eksplisitt, lokalt allowlist-register. Ukjente kilder krever en Source-oppføring.
-Søk kan filtreres på kilde og støtte. Gjeldende data er fortsatt lokale og manuelt
-vedlikeholdte. Ikke fyll katalogen med spekulative tabeller.
+Milepæl A-reglene gjelder fortsatt: null er et tall, manglende endepunkter
+byttes aldri ut med eldre verdier, og prosentvis endring fra null er ukjent.
+Grafen har hull ved manglende/statusmerkede punkter, mens CSV beholder
+originalverdier og status. Valgsammenligning bruker felles valgår og avviser
+manglende/statusmerkede endepunkter; dette er ikke endret i D.
 
-## Neste registry-trinn, uten provider-omskriving
+`AnalysisResult.schema_version` og `DataReceipt.schema_version` er begge `"1"`.
+Adapter-/beregningskontrakten identifiseres med `ssb-population/1` og appversjonen
+registreres. Ukjente skjemaversjoner avvises ved innlesing. Brudd i feltenes
+betydning eller struktur krever ny versjon og eksplisitt lesestøtte.
 
-1. Lag separate discovery-funksjoner rundt eksisterende SSB-/FHI-metadataendepunkter.
-   Bruk namespaces provider/source/table som identitet. Oppdagede metadata får
-   DISCOVERED, kilde-URL, hentetid og rå metadatasnapshot. Discovery må aldri
-   overskrive lokalt verifisert adapterbinding eller oppgradere støtte automatisk.
-2. Skill kuraterte støtteoppføringer fra innhentede snapshots. Start med versjonert
-   JSON i egen cache; velg SQLite/FTS først når volum eller filtrering krever det.
-   Lag migrering/versionering av formatet og bevar siste vellykkede snapshot ved feil.
-3. Utvid dimensjonsbeskrivelsen med kode, etikett, rolle, kategorikilde og eventuelle
-   hierarkier; måltall får enhet og kildebeskrivelse per kategori. Behold dagens
-   enkle felt som kompatibilitetsvisning. Lag tidsdekning som strukturerte intervaller
-   og eksplisitte brudd, ikke bare en tekststreng.
-4. Indekser myndighet, tema, titler, beskrivelser og verifiserte kategorier. Et
-   metadatasøk etter selvmord/kriminalitet skal returnere treff med støttestatus,
-   eller si at lokal katalog ikke har treff. Det er ikke en påstand om at data
-   ikke eksisterer. «Trondheim» krever kategori-/geografimetadata med kode og
-   tidsdekning; ikke slutt dette fra et generelt kommune-felt.
-5. Hold katalogoppdagelse adskilt fra analyseplanlegging. En plan validerer
-   tilgjengelige dimensjoner/måltall mot kilden før spørring. Flertydige treff
-   krever valg; aldri velg et legemiddel eller en statistikk på fri AI-gjetning.
+`DataReceipt` har kilde, måltall/enhet, serier, strukturerte transformasjoner,
+advarsler og brukstidspunkt. Stegene beskriver kommunevalg, lokal periodeavgrensning,
+absolutt/prosentvis endring og sideordnet sammenligning; de er ikke kjørbar kode.
+Referanser til input/output er relative til hver angitt serie.
+Tabell-ID, måltallskode, utvalg og URL-er kommer fra eksisterende adapter/katalog.
+Katalogtittelen «Befolkning» er ikke utgitt for å være en full offisiell tabelltittel.
 
-Offentlige myndigheter som Stortinget, Skatteetaten, Politiet, domstolene,
-Regjeringen, kommuner/fylker, Norges Bank, Brønnøysundregistrene, Kartverket,
-Statens vegvesen, NVE og MET Norway er dekningsmål, ikke implementert støtte.
-Verifiser offentlig tilgang, vilkår og maskinlesbarhet per datasett.
-Prioritet: offisielt API, maskinlesbar fil (CSV/JSON/JSON-stat/Parquet), XLSX/XLS,
-deretter andre strukturerte offisielle kilder. Ikke bruk skjør HTML-skraping når
-en offisiell maskinlesbar kilde finnes.
+Kildens JSON-stat-metadata kopieres fra attrs til en uavhengig, uforanderlig
+JSON-snapshot i kontrakten. I kvitteringens wireformat er `provider_metadata` et
+vanlig JSON-objekt. GUI/CLI trenger ikke attrs eller SSB-kolonnenavn for å rekonstruere
+svaret. Providerens rå metadata kan fortsatt inneholde egne dimensjonsnavn.
 
-## Minste fremtidige adapterkontrakt
+## Hentetid, cache og ærlig uvisshet
 
-Bruk tynne wrapper-funksjoner rundt fungerende providers. Første felles kontrakt
-bør være konseptuelt fetch(validated_selection) -> AnalysisResult, der resultatet
-har observations, receipt og en referanse til rå payload. Metadata/discovery er
-separate operasjoner. Ingen felles abstrakt klasse med mange obligatoriske metoder.
-Ingen eksisterende provider må bytte signatur samtidig.
+Eksisterende SSB-provider gir ikke pålitelig hentetid eller cachetreff videre.
+Derfor er `fetched_at`, `cache_hit`, `content_hash` og `raw_data_reference` null,
+også når providerkallet i denne kjøringen faktisk måtte hente fra nettet.
+`used_at` er UTC-tidspunktet da applikasjonsresultatet ble konstruert. Det er aldri
+bevis på ny kildehenting. Kildens `updated` kopieres når tilgjengelig; ellers null.
+Lisens er null fordi den ikke finnes i eksisterende konfigurasjon/metadataflyt.
 
-- HTTP: del timeout/feil/retry-policy først når reell duplisering krever det.
-- JSON-stat: trekk ut felles ordens-/kategoriavkoding først med SSB- og
-  FHI-kontrakttester. Behold status og rå extension; dette er ikke gjort nå.
-- REST/JSON: del transport; JSON-skjema og betydning normaliseres i provider.
-- CSV: provider bestemmer encoding, skilletegn, datatyper og manglende-koder.
-- XLSX: provider velger ark, overskriftsrader og enheter. Ingen generell
-  «gjett regnearket»-motor; avhengigheter tilføyes først for et verifisert datasett.
+Ingen fil-mtime leses som kildehentetid. Ingen historiske cacheposter omskrives.
+Cachefilens SHA-256 identifiserer forespørselen, ikke responsinnholdet, og brukes
+aldri som innholdshash. JsonCache publiserer JSON atomisk og behandler korrupt JSON
+som cachebom (milepæl A). Cachen lagrer reserialisert JSON, ikke originale HTTP-bytes.
+Ingen generell TTL, cache-only-modus eller cachemanifest er innført.
 
-En formatleser er ikke en analyseadapter og gir ikke automatisk SUPPORTED-status.
-Behold kildekoder og kildeetiketter. Ikke reduser FHI-status til en universell boolsk
-missing-kolonne. Eventuell normalisert status er et tillegg, med rå kode og
-mappingversjon bevart. Estimat, foreløpig tall, undertrykking og seriebrudd er ulike
-begreper; støtten må kunne representere flere flagg samtidig.
+`None` skiller ukjent fra `False`, nullverdi og tom liste. Tom advarselliste betyr
+ingen påviste advarsler i disse kontrollene, ikke komplett kvalitetsgaranti.
+`status_available` skiller manglende statuskolonne fra en kjent kolonne uten
+markeringer. Kildekodene `None`, tom streng og ikke-tomme koder beholdes separat.
 
-## Datakvittering: foreslått kontrakt, ikke ferdig implementert
+## GUI, CLI og eksport
 
-En versjonert Receipt bør inneholde:
+Milepæl B bruker `GuiJobs`: per vindu maks to arbeidstråder og én utskiftbar ventende
+jobb. Generasjons-ID og kansellering hindrer eldre svar/feil i å overskrive nyere
+resultat. GTK oppdateres bare på hovedtråden. Lukking og ny analyse ugyldiggjør jobber.
+Et pågående HTTP-kall kan ikke avbrytes fysisk. Matplotlib opprettes/rendres/ryddes
+under en prosesslås med unike midlertidige filer; bildebytes leveres tilbake.
+NAVs eksisterende filcache beskyttes av en GUI-lås rundt henting og parsing.
 
-- authority, provider/source ID, dataset/table ID og tittel;
-- offisiell source_url og den faktiske retrieval_url, format og kildeoppdatering;
-- forespurt og faktisk dimensjonsutvalg, måltall, enhet og periode;
-- fetched_at (faktisk henting), used_at (bruk i analysen), cache_hit, payload_hash
-  og referanse til uendret rå payload; en cachelesing er ikke en ny kildehenting;
-- raw/normalized/calculated som eksplisitte roller;
-- beregningssteg med navn, versjon, input-referanser, formel, parametre og
-  behandling av status/manglende verdier; ingen oppdiktet metodetekst;
-- kildens definisjoner, metode, begrensninger, seriebrudd og original statusmetadata;
-- valgfrie markeringer av offisiell statistikk, foreløpighet og estimater;
-- bevart provider_metadata uten destruktiv normalisering.
+Befolkningstjenesten sjekker jobbtokens mellom providerkall. `gui_work` renderer
+resultatet; GTK leser ikke SSB-kolonner. Nye handlinger «Vis datakvittering» og
+«Eksporter kvittering (JSON)» gjelder bare gjeldende befolkningsresultat.
+Kvitteringstekst/eksport forberedes i arbeidstråd; sene filvalg og kvitteringsvinduer
+følger samme generasjonsvern. Innsetting av ferdig tekst i GTK skjer på hovedtråden;
+stor tabellvirtualisering er ikke implementert.
 
-Første wrapper kan bruke eksisterende FHI attrs. Gamle analyser merkes med
-ufullstendig kvittering; ukjente felt forblir ukjente. Ikke presenter nåværende
-kildetekst som en komplett kvittering. Behold metadata i AnalysisResult fremfor å
-stole på at pandas attrs alltid følger alle join/concat-operasjoner.
+`population_presentation.summary_text` bruker samme fakta for GUI og CLI.
+CLI-kommandoene beholder tekst/grafvalg og får `--receipt PATH`.
+CSV beholder Kommune, År, Innbyggere og status når tilgjengelig, UTF-8 med BOM.
+JSON eksporteres separat, eksempelvis `population.csv` og `population.receipt.json`.
+Brukeren velger filene separat; ingen sidefil overskrives automatisk.
+JSON bruker UTF-8, sorterte feltnavn, eksplisitt versjon, ISO 8601-tider og null.
+Serialisering/gjenlesing bevarer semantikken; samme kvittering gir identiske bytes.
+Nye analyser får nytt brukstidspunkt, så ulike kjøringer er ikke byteidentiske.
 
-Eksport bør senere skrive CSV + JSON-kvittering (eventuelt en samlet pakke).
-Test maskinell gjenlesing og bevaring av null, flagg, koder, enheter og hash.
-Sammenligninger krever forenlige måltall, enheter, definisjoner, geografi og periode;
-ikke summer ATC-brukere eller bland prosent og prosentpoeng. Resultater kan si
-«ikke beregnbart». Korrelasjon er ikke årsak.
+## Videre arbeid, ikke implementert
 
-## Desktop og hjelp
-
-Implementert meny: Fil (ny analyse, CSV, avslutt), Data (lokal katalog,
-datakilder, rådata, kildeinformasjon), Vis (manuelle befolkningsvalg), Hjelp
-(brukerveiledning, Om). Eksport/rådata/kildeinfo følger eksisterende resultattilstand.
-Ingen døde handlinger for åpne, kart eller oppdatering. Sammenligning og tidsserier
-bruker eksisterende spørsmål/manuelle valg; egen Analyse-meny kommer først med
-selvstendige, fungerende handlinger. Manuelle valg er skjult ved oppstart.
-
-Hjelp lagres i help_content.json som en pakket ressurs, lastes uten nett og vises
-med seksjonsnavigasjon. Teksten skiller faktisk støtte fra mål, og kildedata fra
-beregning/tolkning. Om-vinduet bruker installert versjonsmetadata med lokal fallback,
-prosjektets deklarerte MIT-lisens og bunnteksten «Laget av Johan Slåttavik».
-Ingen ny prosjekt-URL eller opphavsrettsinformasjon gjettes.
-
-Neste GUI-migrering: flytt først datahenting til arbeidstråd med GTK-oppdatering via
-hovedløkken, kansellering og bundet resultatidentitet. Flytt deretter én eksisterende
-analyse om gangen til AnalysisResult. Ikke kombiner dette med provider-omskriving.
-
-## Anbefalte neste tre data-/provider-milepæler
-
-1. SSB metadata discovery: paginering, dimensjonskatalog og verifiserte kategorier,
-   alle nye tabeller DISCOVERED. Ingen automatisk løfte om analyserbarhet.
-2. FHI discovery og første kvitteringswrapper: kilder/tabeller, status/enheter og
-   metadata-snapshots; bruk eksisterende lmr/825 som ende-til-ende referanse.
-3. NAV dataforvaltning: dokumentert oppdateringsvei for eksisterende CSV, versjonert
-   cache/hentetid og synlige seriebrudd; avklar aktuell offisiell distribusjon før
-   eventuell støtte for flere filer eller et nytt format.
-
-Dette prioriterer bredde gjennom metadata og pålitelighet før flere enkeltkilder.
+Felles nettverks-/personverntransport, QueryPlan, generell discovery, begrepsregister,
+NLP, RDF, nye databaser, krysskildeanalyse og migrering av FHI/NAV/valg er utsatt.
+DuckDB er allerede deklarert som avhengighet, men brukes ikke som nytt lager i D.
+Se [personvern](privacy.md) for faktisk nettverks- og lokal lagringsatferd og
+[befolkningskontrakten](population-results.md) for test-/kompatibilitetsgrunnlaget.

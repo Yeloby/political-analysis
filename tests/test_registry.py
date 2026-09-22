@@ -67,7 +67,7 @@ def test_help_resource_sections_and_scope():
     sections = help_sections()
     assert {x.id for x in sections} == {
         "start", "capabilities", "questions", "browse", "concepts", "missing",
-        "methods", "export", "limits", "troubleshooting",
+        "methods", "export", "limits", "troubleshooting", "privacy",
     }
     assert len({x.id for x in sections}) == len(sections)
     assert all(x.title and x.text for x in sections)

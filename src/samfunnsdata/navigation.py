@@ -151,6 +151,9 @@ def install_navigation(window, box, manual_widgets) -> None:
     def reset():
         window.jobs.cancel()
         window.current_series = []
+        window.current_result = None
+        window.receipt_button.set_sensitive(False)
+        window.receipt_export_button.set_sensitive(False)
         window.current_kind = None
         for entry in (window.question, window.place, window.compare_place, window.since):
             entry.set_text("")

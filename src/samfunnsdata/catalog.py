@@ -138,6 +138,38 @@ DATASETS = (
         aliases=("befolkning", "folketall", "innbyggere"),
     ),
     Dataset(
+        id="valg-parliament-results",
+        support=SupportStatus.SUPPORTED,
+        adapter="samfunnsdata.providers.norway.elections:storting_party_history",
+        interfaces=("python", "gui"),
+        source_url="https://valgresultat.no",
+        access_url="https://valgresultat.no/api",
+        format="json",
+        provider="elections",
+        title="Stortingsvalg",
+        topic="elections",
+        source="Valgdirektoratet",
+        geography=("municipality",),
+        time_resolution="election",
+        dimensions=("geography", "year", "party"),
+        unit="votes_percent",
+        description=(
+            "Partienes resultater ved norske stortingsvalg."
+        ),
+        period="2009–2025 (implementerte årganger)",
+        measures=("votes", "votes_percent"),
+        definition=(
+            "Offisielle valgresultater etter kommune og parti."
+        ),
+        limitations=(
+            (
+                "Historisk dekning avhenger av tilgjengelige "
+                "valgdata."
+            ),
+        ),
+        aliases=("stortingsvalg", "stortingsvalgresultat"),
+    ),
+    Dataset(
         id="valg-municipality-results",
         support=SupportStatus.SUPPORTED,
         adapter="samfunnsdata.providers.norway.elections:municipality_party_history",

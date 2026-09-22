@@ -71,7 +71,7 @@ def test_help_about_catalog_render(window):
     assert "Lisens: MIT" in labels
     help_view = help_window(window)
     stack = next(x for x in children(help_view) if isinstance(x, Gtk.Stack))
-    assert stack.get_pages().get_n_items() == 10
+    assert stack.get_pages().get_n_items() == 11
     catalog = catalog_window(window)
     view = next(x for x in children(catalog) if isinstance(x, Gtk.TextView))
     buffer = view.get_buffer()

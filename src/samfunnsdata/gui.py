@@ -6,7 +6,7 @@ from gi.repository import Gdk, GLib, Gtk
 
 from . import gui_work
 from .gui_jobs import GuiJobs
-from .navigation import install_navigation
+from .navigation import install_navigation, text_window
 from .questions import (
     ElectionComparisonQuestion,
     ElectionQuestion,
@@ -29,6 +29,7 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
 
         self.current_series = []
         self.current_kind = None
+        self.current_result = None
 
         box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
@@ -170,6 +171,15 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         self.export_button.connect("clicked", self.on_export)
         actions.append(self.export_button)
 
+        self.receipt_button = Gtk.Button(label="Vis datakvittering")
+        self.receipt_button.set_sensitive(False)
+        self.receipt_button.connect("clicked", self.on_show_receipt)
+        actions.append(self.receipt_button)
+        self.receipt_export_button = Gtk.Button(label="Eksporter kvittering (JSON)")
+        self.receipt_export_button.set_sensitive(False)
+        self.receipt_export_button.connect("clicked", self.on_export_receipt)
+        actions.append(self.receipt_export_button)
+
         self.source = Gtk.Label(
             label=(
                 "Kilde: Statistisk sentralbyrå · "
@@ -196,6 +206,8 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         available = bool(self.current_series) and not busy
         self.raw_button.set_sensitive(available)
         self.export_button.set_sensitive(available)
+        self.receipt_button.set_sensitive(self.current_result is not None and not busy)
+        self.receipt_export_button.set_sensitive(self.current_result is not None and not busy)
         if busy:
             self.status.set_text("Henter og analyserer data …")
 
@@ -223,6 +235,7 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         self.source.set_text(view["source"])
         self.current_series = view["series"]
         self.current_kind = view["kind"]
+        self.current_result = view.get("analysis_result")
         self.chart.set_paintable(texture)
         self.chart.set_visible(True)
 
@@ -368,6 +381,45 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         outer.append(source)
 
         window.present()
+
+    def on_show_receipt(self, _button):
+        if self.current_result is None:
+            return
+        receipt = self.current_result.receipt
+        previous_status = self.status.get_text()
+
+        def show(text):
+            text_window(self, "Datakvittering", text)
+            self.status.set_text(previous_status)
+
+        self.jobs.submit(lambda token: gui_work.receipt_text(token, receipt), show)
+
+    def on_export_receipt(self, _button):
+        if self.current_result is None:
+            return
+        receipt = self.current_result.receipt
+        generation = self.jobs.generation
+        dialog = Gtk.FileDialog()
+        dialog.set_title("Eksporter datakvittering som JSON")
+        dialog.set_initial_name("samfunnsdata.receipt.json")
+        dialog.save(self, None, lambda dialog, result:
+                    self.on_receipt_export_finished(dialog, result, receipt, generation))
+
+    def on_receipt_export_finished(self, dialog, result, receipt, generation):
+        if self.jobs.closed or generation != self.jobs.generation:
+            return
+        try:
+            file = dialog.save_finish(result)
+        except GLib.Error:
+            return
+        if file is None:
+            return
+        path = file.get_path()
+        if path is None:
+            self.status.set_text("Kan bare eksportere til en lokal fil.")
+            return
+        self.jobs.submit(lambda token: gui_work.export_receipt(token, receipt, path),
+                         self.status.set_text)
 
     def on_export(self, button):
         if not self.current_series:

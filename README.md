@@ -8,7 +8,8 @@ spørsmålsformuleringer, diagrammer, CSV-eksport og lokal mellomlagring.
 
 ## Implementert
 
-- SSB: befolkningsutvikling i kommuner og sammenligning mellom kommuner.
+- SSB: befolkningsutvikling i kommuner og sammenligning mellom kommuner, med
+  strukturert resultat og datakvittering som kan vises og eksporteres som JSON.
 - Valgdirektoratet: partihistorikk og sammenligninger for stortingsvalg og
   kommunevalg, innenfor årgangene leverandøren støtter i programmet.
 - NAV: registrerte helt ledige etter kommune og måned.
@@ -51,3 +52,15 @@ Katalogen skiller mellom støttet, katalogisert og planlagt, og viser hvilke
 grensesnitt som er implementert. Den er ikke en komplett oversikt over norske
 offentlige data. Se [arkitektur og migreringsplan](docs/architecture.md) for
 videre arbeid med oppdagelse, adaptere og datakvitteringer.
+
+## Datakvittering og personvern
+
+Befolkningsresultater har «Vis datakvittering» og separat JSON-eksport i GUI.
+CLI `population` og `compare` støtter `--receipt PATH`. CSV-formatet beholdes.
+Ukjent opprinnelig hentetid vises som ukjent, også for eldre cacheposter.
+Se [befolkningsresultater](docs/population-results.md).
+
+GUI-spørsmål tolkes lokalt; datautvalg sendes til kildene ved behov. CLI `search`
+sender søketeksten til SSB ved cachebom. Ingen telemetri er implementert.
+Cache og eksporter lagres lokalt uten kryptering fra programmet. Det finnes
+ingen cache-only-modus. Se [personvern og nettverk](docs/privacy.md).

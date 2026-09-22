@@ -3,14 +3,19 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 from .analysis import observation_value
+from .results import PopulationSeries
 
 
 def population_figure(series, title: str):
     fig, ax = plt.subplots(figsize=(12, 6))
 
     for label, frame in series:
-        years = frame["Tid_code"].astype(int)
-        values = [observation_value(row) for _, row in frame.iterrows()]
+        if isinstance(frame, PopulationSeries):
+            years = [int(o.period) for o in frame.source_observations]
+            values = [o.usable_value for o in frame.source_observations]
+        else:
+            years = frame["Tid_code"].astype(int)
+            values = [observation_value(row) for _, row in frame.iterrows()]
 
         ax.plot(
             years,

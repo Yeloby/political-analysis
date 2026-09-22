@@ -1,5 +1,6 @@
 """Real window checks with synthetic providers; no network required."""
 
+import json
 from threading import Event, get_ident
 from types import SimpleNamespace
 
@@ -123,8 +124,8 @@ def test_all_analysis_paths_work_off_main_thread(window, monkeypatch, path):
     if path.startswith("population"):
         assert "100 → 110" in window.result.get_text()
         assert "(+10,0 %)" in window.result.get_text()
-        assert window.current_series[0][1].attrs == population.attrs
-        assert window.current_series[0][1]["status"].tolist() == ["", ""]
+        assert json.loads(window.current_series[0][1].provider_metadata_json) == population.attrs["jsonstat_metadata"]
+        assert [o.status for o in window.current_series[0][1].source_observations] == ["", ""]
     if path.endswith("compare") and not path.startswith("population"):
         assert "Forskjell i 2025: 0,00" in window.result.get_text()
 
