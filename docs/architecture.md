@@ -130,10 +130,34 @@ JSON bruker UTF-8, sorterte feltnavn, eksplisitt versjon, ISO 8601-tider og null
 Serialisering/gjenlesing bevarer semantikken; samme kvittering gir identiske bytes.
 Nye analyser får nytt brukstidspunkt, så ulike kjøringer er ikke byteidentiske.
 
+## QueryPlan: deklarative, validerte planer
+
+QueryPlan er en liten, deklarativ plan for å beskrive en analyse uten å gi
+vilkårlige remote metadata en egen utøvende rolle. En plan inneholder
+`dataset_id`, `operation`, `filters`, `measure`, `grouping`, `ordering`, `limit`
+og `schema_version`.
+
+Valideringen skjer lokalt før en plan kan utføres. `validate_query_plan` kontrollerer
+at schemaversionen er støttet, at datasettet faktisk finnes, at det er merket som
+`SUPPORTED`, at operasjonen er tillatt, at måltallet er kjent og at filterene er
+forventede dimensjoner med gyldige verdier. En plan kan ikke bli et kjørbart
+program bare fordi en oppdaget SSB-tabell ser relevant ut i metadata.
+
+Planer kan serialiseres med `to_json()`, parses tilbake med `from_json()`, og
+konsistent normaliseres før hashberegning. Hashen er deterministisk og brukes i
+kvitteringen som `query_plan_hash`, sammen med eksisterende proveniens og
+kildemetadata. Det er derfor mulig å spore hvilken plan som ble brukt uten å
+lagre det originale fritekstspørsmålet i kvitteringen.
+
+Dette er et bevisst defensivt design: det gjør det tydelig hva som er planlagt,
+validerbart og faktisk utørlig, og skiller det fra katalogisert metadata som bare
+forteller at et datasett finnes.
+
 ## Videre arbeid, ikke implementert
 
-Felles nettverks-/personverntransport, QueryPlan, generell discovery, begrepsregister,
-NLP, RDF, nye databaser, krysskildeanalyse og migrering av FHI/NAV/valg er utsatt.
-DuckDB er allerede deklarert som avhengighet, men brukes ikke som nytt lager i D.
+Felles nettverks-/personverntransport, generell discovery, begrepsregister,
+NLP, RDF, nye databaser, krysskildeanalyse og migrering av FHI/NAV/valg er
+fortsatt utsatt. DuckDB er allerede deklarert som avhengighet, men brukes ikke
+som nytt lager i dette prosjektet.
 Se [personvern](privacy.md) for faktisk nettverks- og lokal lagringsatferd og
-[befolkningskontrakten](population-results.md) for test-/kompatibilitetsgrunnlaget.
+[README.md](../README.md) for prosjektets publiserte bruksscenarioer.

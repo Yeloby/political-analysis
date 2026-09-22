@@ -59,6 +59,19 @@ foreldede resultater, men et pågående kildekall kan fortsatt fullføres. Data 
 Oppdater datakatalog kjører i bakgrunn og bruker samme cache-only-regel som
 andra nettverk. Oppdateringen henter bare katalogmetadata, ikke observasjonsdata.
 
+## QueryPlan og lokal kontroll
+
+QueryPlan er lokalt bygget og lokalt validert. Den validerer bare planens
+struktur og støttegrad; den gjør ikke et katalogisert eller planlagt datasett
+kjørbart. En plan må derfor være oppført som `SUPPORTED` i den lokale
+katalogen før den kan kjøres.
+
+Dette betyr at en `QueryPlan` kan beskrive en forståelig analyse uten at
+någon remote metadata eller et oppdaget snapshot får lov til å skape et
+operativt kjørbart bindingslag. `query_plan_hash` i kvitteringen er en deterministisk
+sporbar identifikator for den lokale planen, ikke et bevis på at selve spørsmålet
+ble sendt til et eksternt system.
+
 ## Begrensninger
 
 Programmet har en liten, eksplisitt nettverks- og personvernpolicy for de

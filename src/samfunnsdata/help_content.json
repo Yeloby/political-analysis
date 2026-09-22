@@ -7,7 +7,7 @@
   {
     "id": "capabilities",
     "title": "Hva kan programmet nå?",
-    "text": "GUI-en viser kommunebefolkning og kommunesammenligninger fra SSB, partiresultater og sammenligninger ved stortings- og kommunevalg, samt NAVs registrerte helt ledige. Katalogen kan søkes fra Data-menyen. FHI-legemidler er støttet gjennom Python/API, men ikke som spørsmål eller analyser i GUI-en. Katalogen er foreløpig et lite utvalg, ikke en komplett oversikt over offentlige data."
+    "text": "GUI-en viser kommunebefolkning og kommunesammenligninger fra SSB, partiresultater og sammenligninger ved stortings- og kommunevalg, samt NAVs registrerte helt ledige. Programmet har også en lokal katalog over datasett og en eksplisitt QueryPlan-validering som ser etter dataset støttestatus, gyldige mål og tillatte filter før en analyse kjøres. FHI-legemidler er støttet gjennom Python/API, men ikke som spørsmål eller analyser i GUI-en. Katalogen er foreløpig et lite utvalg, ikke en komplett oversikt over offentlige data."
   },
   {
     "id": "questions",
