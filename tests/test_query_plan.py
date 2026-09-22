@@ -123,6 +123,19 @@ def test_query_plan_validation_and_planning_are_local_only(monkeypatch):
     assert plan.dataset_id == "ssb-07459-population"
 
 
+def test_population_plan_construction_uses_local_municipality_lookup_only(monkeypatch):
+    def fail_network(*args, **kwargs):
+        raise AssertionError("Network access forbidden during planning")
+
+    monkeypatch.setattr("samfunnsdata.network.request", fail_network)
+
+    plan = plan_from_population_question(parse_population_question("Vis befolkningen i Trondheim i 2024"))
+
+    assert plan.dataset_id == "ssb-07459-population"
+    assert plan.filters["municipality"] == "5001"
+    assert plan.filters["year"] == 2024
+
+
 def test_remote_metadata_cannot_create_executable_binding():
     with pytest.raises(TypeError, match="SupportStatus|støttet|supported"):
         catalog._normalize_remote_support("supported")

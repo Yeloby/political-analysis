@@ -11,6 +11,7 @@ from .catalog import SupportStatus, get_dataset
 from .population import analyze_population
 from .providers.norway.ssb import (
     find_municipality,
+    find_municipality_local,
     municipalities,
     municipality_population,
 )
@@ -208,7 +209,9 @@ def _resolve_municipality_filter(value: str) -> str:
                 return candidate
         raise ValueError(f"Unknown municipality code: {candidate}")
 
-    municipality = find_municipality(candidate)
+    municipality = find_municipality_local(candidate)
+    if municipality is None:
+        raise ValueError(f"Fant ikke kommunen «{candidate}».")
     code = municipality.code.removeprefix("K-")
     return code
 
@@ -261,7 +264,10 @@ def execute_query_plan(plan: QueryPlan | dict[str, Any] | str):
         if municipality_name is None:
             raise QueryPlanValidationError(f"Unknown municipality code: {code}")
     else:
-        municipality_name = find_municipality(code).name
+        municipality_name = find_municipality_local(code)
+        if municipality_name is None:
+            municipality_name = find_municipality(code)
+        municipality_name = municipality_name.name
 
     since = validated.filters.get("year")
     result = analyze_population([municipality_name], since, provider=municipality_population)

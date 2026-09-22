@@ -2,22 +2,22 @@
 
 **Offentlige data. Etterprøvbare svar.**
 
-Samfunnsdata er et lokalt, åpent verktøy for å finne, forstå og bruke norske
-offentlige data. Det er bygget for å være tydelig om hva som faktisk er
-støttet, hva som bare er katalogisert, og hva som er planlagt. Hensikten er
-ikke å gjette eller å presentere et løst svar som om det var en fullstendig
-offisiell analyse; hensikten er å gjøre offentlige tall mer etterprøvbare.
+Samfunnsdata er et lokalt og åpent verktøy for å finne, forstå og bruke norske
+offentlige data. Målet er å være tydelig om hva som faktisk er støttet, hva som
+bare er katalogisert, og hva som fortsatt er planlagt. Programmet bygger på
+lokale valg, tydelige grenser og etterprøvbare resultater, ikke på generiske
+antagelser om store deler av det offentlige datagrunnlaget.
 
-## Hva programmet kan brukes til
+## Hva programmet kan gjøre i dag
 
 - Se befolkningsutvikling i en kommune over tid
-- Sammenligne kommuner med samme mål og samme tidsfilter
-- Søk i en lokal katalog over norske offentlige datasett
+- Sammenligne kommuner etter samme mål og samme tidsfilter
+- Søk i en lokal katalog over offentlige datasett
 - Se hvilke kilder som er støttet, hvilke som bare er oppdaget, og hvilke som
   fortsatt er planlagt
-- Eksportere CSV og datakvitteringer til fil, når analysen støttes
+- Eksportere CSV og datakvitteringer når analysen faktisk støttes
 
-## Et konkret eksempel
+## Eksempler
 
 ```bash
 samfunnsdata population Trondheim --since 2010
@@ -25,68 +25,77 @@ samfunnsdata compare Trondheim Bergen --since 2010
 samfunnsdata search "befolkning"
 ```
 
-Dette er ekte kommandoer i programmet. De viser hvordan Samfunnsdata bruker en
-lokalt validert analyseplan for å hente og presentere et kjent, støttet
-datasett uten å gjøre vilkårlige antagelser om øvrige tabeller.
+Dette er reelle kommandoer i projektet. De viser hvordan Samfunnsdata bruker en
+lokalt validert analyseplan for å hente og presentere et kjent, støttet datasett
+uten å gjøre vilkårlige antagelser om andre tabeller eller kilder.
 
-## Nåværende kapabiliteter
+## Støttet nå
 
-Programmet støtter i dag et begrenset, men eksplisitt utvalg av norske
-offentlige datakilder og analyser:
+Samfunnsdata støtter i dag et avgrenset, men tydelig utvalg av norske offentlige
+kilder og analyser:
 
-- SSB: kommune- og befolkningsdata, sammenligninger og datakatalog
-- NAV: registrerte helt ledige, hvor det er tilgjengelig via dagens implementasjon
-- Valgdirektoratet: partivalgssammenligninger i de formene programmet faktisk
-  støtter
-- FHI: registrerte helse- og legemiddeldata via tilgjengelige, lokale Python-API
-  flyter, uten å gjøre vilkårlige analyser automatiske i GUI eller naturlig språk
+- SSB: befolkningsdata, sammenligninger og datakatalog
+- NAV: registrerte helt ledige
+- Valgdirektoratet: partivalgssammenligninger der programmet faktisk har
+  implementert støtten
+- FHI: helsestatistikk og legemiddeldata via lokale Python-/API-flyter
 
-Dette er ikke et generelt “alt fra alle offentlige kilder”-prosjekt. Det er et
-lokalt, etterprøvbart verktøy med tydelige grenser.
+Dette er ikke et prosjekt som lover støtte for alle offentlige data. Det er et
+lokalt, etterprøvbart verktøy med klare grenser.
 
-## Støttet, katalogisert og planlagt
+## Katalogisert og planlagt
 
 Samfunnsdata skiller tydelig mellom tre tilstander:
 
-- Støttet: datasettet har en eksplisitt adapter og et etablerte analyseflyt i
+- Støttet: datasettet har en eksplisitt adapter og en faktisk analyseflyt i
   programmet.
 - Katalogisert: metadata er oppdaget og lagret lokalt, men datasettet er ikke
   automatisk kjørbart eller semantisk støttet i Samfunnsdata.
-- Planlagt: det finnes en realistisk ambisjon om å støtte det senere, men det er
-  ikke implementert enda.
+- Planlagt: det finnes en realistisk målsetning om å støtte det senere, men det
+  er ikke implementert ennå.
 
 Den viktige regelen er enkel: oppdaget metadata kan fortelle deg at et datasett
 finnes, men det kan ikke gi det kjørbar status i programmet.
 
-## Kilder i prosjektet
+## Et bredere offentlig datalandskap
 
-Disse er ekte norske offentlige kilder som ligger i prosjektets reelle
-arbeidsområde:
+Samfunnsdata er ment å vokse innenfor et realistisk, offentlig og norsk
+datasettlandskap. Det omfatter blant annet:
 
-- Statistisk sentralbyrå (SSB): https://www.ssb.no
-- NAV: https://www.nav.no
-- Valgdirektoratet: https://www.valgresultat.no
-- Folkehelseinstituttet (FHI): https://www.fhi.no
+- SSB / KOSTRA
+- NAV
+- FHI
+- Valgdirektoratet
+- Kartverket / Geonorge
+- MET Norway / Frost
+- Statens vegvesen / NVDB / Trafikkdata
+- Norges Bank
+- NVE
+- Brønnøysundregistrene
+- Sokkeldirektoratet
+- Enova
+- Husbanken
+- Udir / HK-dir / DBH
+- relevante miljø-, transport-, fiskeri- og andre offentlige datakilder
 
-Prosjektet bruker disse kildene der det er implementert, og tar hensyn til hva
-som faktisk er etterprøvbart i en lokal, strukturert analyse.
+Dette er et bredt horisont, ikke en liste over noe som allerede er støttet. Det er
+et mål for hvor Samfunnsdata kan bli nyttig, uten at det blir et løfte om å
+støtte alt fra hver enkelt myndighet.
 
-## Personvern og lokal prosessering
+## Personvern og lokalt arbeid
 
-Samfunnsdata er bygget for å gjøre mest mulig lokalt. GUI og CLI tolker spørsmål
-lokalt, og analysene valideres før de kjøres. Katalogoppdateringer, cache og
-eksport lagres i brukerens lokale miljø, og programmet har en eksplisitt
-`--cache-only`-modus som stopper nettverk uten at det lar programmet skjule
-hvilke datakilder som faktisk ble brukt.
+Samfunnsdata prøver å gjøre mest mulig lokalt. GUI og CLI tolker spørsmål lokalt,
+og analysene valideres før de kjøres. Katalogoppdateringer, cache og eksport
+lagres i brukerens lokale miljø, og programmet har en eksplisitt `--cache-only`
+modus som stopper nettverk uten å skjule hvilke datakilder som faktisk ble brukt.
 
 Det betyr ikke at programmet er en anonymitetstjeneste eller en fullstendig
-frakoblet løsning; det betyr at overvåkning og andre beslutninger er eksplicitte
-og mønsterbare. Se [docs/privacy.md](docs/privacy.md) for mer om nettverk,
-lagring og lokale grenser.
+frakoblet løsning. Det betyr at nettverk, cache og datakilder blir håndtert med
+klare grenser og tydelig dokumentasjon.
 
-## Hvordan du kommer i gang
+## Kom i gang
 
-Installer prosjektet og skrivbordsintegrasjonen med:
+Installer prosjektet og skrivebordsintegrasjonen med:
 
 ```bash
 ./install.sh
@@ -98,19 +107,19 @@ Deretter kan du bruke CLI-en med:
 samfunnsdata --help
 ```
 
-Hvis du vil starte den grafiske brukerflaten, bruk den som passer for ditt
-miljø, eller start prosjektet i den lokale utviklingsoppsettet du bruker.
+Hvis du vil starte den grafiske brukerflaten, bruk den som passer for ditt miljø,
+eller start prosjektet i ditt lokale utviklingsoppsett.
 
-## Bredere ambisjon
+## Ambisjon
 
-Samfunnsdata vil gjøre det enklere å ta norske offentlige data i bruk uten å
-miste kontrollen over kilde, metode og begrensning. Langsiktig mål er at
-brukeren skal kunne finne relevante datasett, forstå hva som er støttet, og få
-afterprøvbare svar som er tydelig knyttet til en faktisk datakilde.
+Samfunnsdata skal gjøre det enklere å bruke norske offentlige data uten å miste
+kontrollen over kilde, metode og begrensning. Langsiktig mål er at brukeren skal
+kunne finne relevante datasett, forstå hva som faktisk er støttet, og få
+etterprøvbare svar som er tydelig knyttet til en reell datakilde.
 
-Det er ikke et løfte om å støtte alle offentlige data eller å automatisere alt
-fra alle myndigheter. Det er et løp mot mer forståelige, mer åpne og mer
-afterprøvbare analyser innenfor et avgrenset, ryddig sett av datasett.
+Det er ikke et løfte om å støtte alle offentlige data eller å automatisere alt fra
+alle myndigheter. Det er et arbeid mot mer forståelige, mer åpne og mer
+etterprøvbare analyser innenfor et avgrenset, ryddig sett av datasett.
 
-Se [docs/architecture.md](docs/architecture.md) for arkitekturen bak prosjektet, og
-[docs/privacy.md](docs/privacy.md) for personvern og nettverksmodellen.
+Se [docs/architecture.md](docs/architecture.md) for mer om arkitekturen, og
+[docs/privacy.md](docs/privacy.md) for personvern og nettverksmodell.

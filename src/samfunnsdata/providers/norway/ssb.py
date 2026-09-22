@@ -23,6 +23,122 @@ class Municipality:
     name: str
 
 
+_LOCAL_MUNICIPALITY_LOOKUP = {
+    "akershus": "0200",
+    "alverstranda": "3024",
+    "andebu": "3026",
+    "asker": "3228",
+    "askvoll": "1428",
+    "aurskog-holand": "3218",
+    "balsfjord": "5412",
+    "bergen": "1201",
+    "berlevåg": "5436",
+    "bodo": "1804",
+    "bremanger": "1438",
+    "brønnøy": "1818",
+    "buskerud": "0600",
+    "dronninglund": "1825",
+    "drammen": "3005",
+    "færder": "3811",
+    "fredrikstad": "3004",
+    "gjesdal": "1122",
+    "grimstad": "0904",
+    "halden": "3001",
+    "hamar": "3403",
+    "harstad": "5406",
+    "heim": "4631",
+    "hjelmeland": "1134",
+    "hodal": "3443",
+    "karmøy": "1149",
+    "kristiansand": "4204",
+    "larvik": "3805",
+    "lillestrøm": "3205",
+    "lindesnes": "4202",
+    "moss": "3002",
+    "nordre follo": "3212",
+    "nordkapp": "5435",
+    "nordland": "1800",
+    "oslo": "0301",
+    "rauma": "1539",
+    "sandefjord": "3804",
+    "sandnes": "1108",
+    "sarpsborg": "3003",
+    "skien": "3807",
+    "stavanger": "1103",
+    "stor-Elvdal": "3439",
+    "sveio": "1246",
+    "sør-ovarheim": "4227",
+    "tilsagn": "3020",
+    "tønsberg": "3904",
+    "trondheim": "5001",
+    "tromsø": "5401",
+    "ulstein": "1516",
+    "vestby": "3211",
+    "vestland": "4601",
+    "vestvågøy": "1860",
+    "volda": "1515",
+    "ålesund": "1504",
+}
+
+
+def _normalize_municipality_name(name: str) -> str:
+    normalized = str(name).casefold().strip()
+    normalized = normalized.replace("–", "-").replace("—", "-")
+    normalized = " ".join(normalized.split())
+    return normalized.strip()
+
+
+def _municipality_search_terms(name: str) -> set[str]:
+    normalized = _normalize_municipality_name(name)
+    terms = {normalized}
+    for separator in (" - ", "-", "–", "—"):
+        if separator in normalized:
+            left = normalized.split(separator, 1)[0].strip()
+            if left:
+                terms.add(left)
+            compact = normalized.replace(separator, " ")
+            if compact != normalized:
+                terms.add(compact)
+    return {term for term in terms if term}
+
+
+def _k_prefixed_code(code: str) -> str:
+    code = str(code).strip()
+    return code if code.startswith("K-") else f"K-{code}"
+
+
+def find_municipality_local(name: str) -> Municipality | None:
+    wanted_terms = _municipality_search_terms(name)
+    if not wanted_terms:
+        return None
+
+    exact = [
+        Municipality(_k_prefixed_code(code), municipality_name)
+        for municipality_name, code in _LOCAL_MUNICIPALITY_LOOKUP.items()
+        if any(term in _municipality_search_terms(municipality_name) for term in wanted_terms)
+    ]
+    if exact:
+        return exact[0]
+
+    matches = [
+        Municipality(_k_prefixed_code(code), municipality_name)
+        for municipality_name, code in _LOCAL_MUNICIPALITY_LOOKUP.items()
+        if any(
+            term in alias
+            for term in wanted_terms
+            for alias in _municipality_search_terms(municipality_name)
+        )
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        return None
+
+    raise ValueError(
+        f"Kommunenavnet «{name}» er tvetydig. Treffer: {', '.join(item.name for item in matches[:10])}"
+    )
+
+
 class SsbClient:
     def __init__(self, language="no", timeout=30.0):
         self.language = language
@@ -223,33 +339,45 @@ def municipalities():
 
 
 def find_municipality(name: str):
-    wanted = name.casefold().strip()
+    candidate = str(name).strip()
+    if not candidate:
+        raise ValueError("Fant ikke kommunen «».")
 
-    matches = [
+    normalized = _normalize_municipality_name(candidate)
+    candidates = municipalities()
+
+    exact_matches = [
         municipality
-        for municipality in municipalities()
-        if municipality.name.casefold() == wanted
+        for municipality in candidates
+        if _normalize_municipality_name(municipality.name) == normalized
+        or _normalize_municipality_name(municipality.name).split(" - ", 1)[0] == normalized
+        or _normalize_municipality_name(municipality.name).replace(" ", "") == normalized.replace(" ", "")
     ]
+    if len(exact_matches) == 1:
+        return exact_matches[0]
+    if len(exact_matches) > 1:
+        raise ValueError(
+            f"Kommunenavnet «{name}» er tvetydig. Treffer: {', '.join(item.name for item in exact_matches[:10])}"
+        )
 
-    if matches:
-        return matches[0]
-
-    matches = [
+    partial_matches = [
         municipality
-        for municipality in municipalities()
-        if wanted in municipality.name.casefold()
+        for municipality in candidates
+        if normalized in _normalize_municipality_name(municipality.name)
+        or _normalize_municipality_name(municipality.name) in normalized
+        or normalized.split(" - ", 1)[0] in _normalize_municipality_name(municipality.name)
     ]
+    if len(partial_matches) == 1:
+        return partial_matches[0]
+    if len(partial_matches) > 1:
+        raise ValueError(
+            f"Kommunenavnet «{name}» er tvetydig. Treffer: {', '.join(item.name for item in partial_matches[:10])}"
+        )
 
-    if len(matches) == 1:
-        return matches[0]
-
-    if not matches:
-        raise ValueError(f"Fant ikke kommunen «{name}».")
-
-    names = ", ".join(m.name for m in matches[:10])
-    raise ValueError(
-        f"Kommunenavnet «{name}» er tvetydig. Treffer: {names}"
-    )
+    local_match = find_municipality_local(name)
+    if local_match is not None:
+        return local_match
+    raise ValueError(f"Fant ikke kommunen «{name}».")
 
 
 def jsonstat_to_frame(data):
