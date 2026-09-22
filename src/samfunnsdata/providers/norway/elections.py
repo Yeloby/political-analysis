@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-import httpx
 import pandas as pd
 
+from ... import network
 from ...cache import JsonCache
 
 BASE_URL = "https://valgresultat.no/api"
@@ -25,7 +25,7 @@ class ElectionClient:
         cached = self.cache.get("valgresultat", cache_key)
 
         if cached is None:
-            response = httpx.get(
+            response = network.request("elections", "election_data", "GET",
                 f"{BASE_URL}{path}",
                 timeout=self.timeout,
                 follow_redirects=True,

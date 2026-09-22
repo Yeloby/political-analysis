@@ -61,6 +61,7 @@ Ukjent opprinnelig hentetid vises som ukjent, også for eldre cacheposter.
 Se [befolkningsresultater](docs/population-results.md).
 
 GUI-spørsmål tolkes lokalt; datautvalg sendes til kildene ved behov. CLI `search`
-sender søketeksten til SSB ved cachebom. Ingen telemetri er implementert.
-Cache og eksporter lagres lokalt uten kryptering fra programmet. Det finnes
-ingen cache-only-modus. Se [personvern og nettverk](docs/privacy.md).
+sender søketeksten til SSB når programmet er i online-modus og ingen lokal cache
+finner treff. `--cache-only` forbyr alle nettverksforespørsler og tillater kun
+lokal cache. Ingen telemetri er implementert. Cache og eksporter lagres lokalt
+uten kryptering fra programmet. Se [personvern og nettverk](docs/privacy.md).

@@ -52,6 +52,6 @@
   {
     "id": "privacy",
     "title": "Personvern og nettverk",
-    "text": "GUI-spørsmål tolkes lokalt. Valgte dataforespørsler sendes til kildene når nødvendig; CLI search sender selve søketeksten til SSB ved cachebom. Kilden kan se IP-adresse og forespørsel. Ingen telemetri er implementert. Cache og eksporter lagres lokalt uten kryptering fra programmet og kan vise hvilke utvalg du undersøker. Eldre cachekopier og terminalhistorikk kan også finnes. Datakvitteringen inneholder utvalg, observasjoner og brukstidspunkt. Ingen cache-only-modus eller felles nettverkspolicy er implementert."
+    "text": "GUI-spørsmål tolkes lokalt. Valgte dataforespørsler sendes til kildene når nødvendig; CLI search sender selve søketeksten til SSB bare i online-modus og kun når lokal cache ikke gir treff. Programmet støtter også en eksplisitt cache-only-modus som forbyr alle nettverkskall. Kilden kan se IP-adresse og forespørsel. Ingen telemetri er implementert. Cache og eksporter lagres lokalt uten kryptering fra programmet og kan vise hvilke utvalg du undersøker. Eldre cachekopier og terminalhistorikk kan også finnes. Datakvitteringen inneholder utvalg, observasjoner og brukstidspunkt."
   }
 ]

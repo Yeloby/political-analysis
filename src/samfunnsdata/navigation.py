@@ -5,6 +5,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib, Gtk
 
+from . import network
 from .catalog import SOURCES, SupportStatus, find_datasets, get_source
 from .help import ATTRIBUTION, DESCRIPTION, TAGLINE, application_version, help_sections
 
@@ -201,10 +202,34 @@ def install_navigation(window, box, manual_widgets) -> None:
     window.add_action(advanced)
     for widget in manual_widgets:
         widget.set_visible(False)
+    mode_action = Gio.SimpleAction.new_stateful(
+        "cache-only", None, GLib.Variant.new_boolean(network.get_mode() == network.NetworkMode.CACHE_ONLY))
+    window.network_label = Gtk.Label(xalign=0)
+    box.append(window.network_label)
+
+    def sync_mode():
+        only = network.get_mode() == network.NetworkMode.CACHE_ONLY
+        for target in window.get_application().get_windows():
+            if hasattr(target, "network_label"):
+                target.network_label.set_text("Nettverk: " + ("Kun lokal cache" if only else "Tillat nettilgang"))
+                action = target.lookup_action("cache-only")
+                if action is not None:
+                    action.set_state(GLib.Variant.new_boolean(only))
+
+    def toggle_network(_action, _parameter):
+        only = network.get_mode() != network.NetworkMode.CACHE_ONLY
+        network.set_mode(network.NetworkMode.CACHE_ONLY if only else network.NetworkMode.ONLINE)
+        sync_mode()
+
+    mode_action.connect("activate", toggle_network)
+    window.add_action(mode_action)
+    sync_mode()
+
     menus = (
         ("Fil", (("Ny analyse", "new-analysis"), ("Eksporter CSV", "export-data"), ("Avslutt", "quit"))),
         ("Data", (("Bla i datasett", "datasets"), ("Datakilder", "sources"),
-                  ("Rådata", "raw-data"), ("Kildeinformasjon", "source-info"))),
+                  ("Rådata", "raw-data"), ("Kildeinformasjon", "source-info"),
+                  ("Kun lokal cache", "cache-only"))),
         ("Vis", (("Manuelle befolkningsvalg", "manual"),)),
         ("Hjelp", (("Brukerveiledning", "help"), ("Om Samfunnsdata", "about"))),
     )

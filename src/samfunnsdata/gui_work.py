@@ -71,7 +71,7 @@ def population(token, place, compare_place, since):
     view = {
         "analysis_result": result,
         "status": f"{first.name} · {facts.first_year}–{facts.last_year}",
-        "source": "Kilde: Statistisk sentralbyrå · Tabell 07459",
+        "source": "Kilde: Statistisk sentralbyrå · Tabell 07459\n" + population_presentation.source_activity(result),
         "result": (True, population_presentation.gui_summary(result)),
         "series": chart_series,
         "kind": "population",

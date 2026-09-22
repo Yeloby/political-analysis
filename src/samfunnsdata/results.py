@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 
 from .analysis import SeriesSummary
+from .network import RequestRecord
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,9 @@ class Provenance:
     source_updated_at: str | None = None
     content_hash: str | None = None
     raw_data_reference: str | None = None
+    network_mode: str | None = None
+    network_occurred: bool | None = None
+    requests: tuple[RequestRecord, ...] = ()
 
     def __post_init__(self):
         if self.fetched_at is not None and self.fetched_at.utcoffset() is None:
@@ -102,11 +106,11 @@ class DataReceipt:
     used_at: datetime
     application_version: str
     warnings: tuple[str, ...] = ()
-    schema_version: str = "1"
+    schema_version: str = "2"
     adapter_version: str = "ssb-population/1"
 
     def __post_init__(self):
-        if self.schema_version != "1":
+        if self.schema_version not in {"1", "2"}:
             raise ValueError("Unsupported DataReceipt schema version")
         if self.used_at.utcoffset() is None:
             raise ValueError("used_at must include a timezone")
@@ -117,6 +121,9 @@ class DataReceipt:
         for series in value["series"]:
             stamp = series["provenance"]["fetched_at"]
             series["provenance"]["fetched_at"] = stamp.isoformat() if stamp else None
+            if self.schema_version == "1":
+                for key in ("network_mode", "network_occurred", "requests"):
+                    series["provenance"].pop(key)
             # Expose an ordinary JSON object in the wire format, never escaped repr.
             metadata = series.pop("provider_metadata_json")
             series["provider_metadata"] = (
@@ -139,7 +146,7 @@ class DataReceipt:
     @classmethod
     def from_json(cls, text):
         value = json.loads(text)
-        if value.get("schema_version") != "1":
+        if value.get("schema_version") not in {"1", "2"}:
             raise ValueError("Unsupported DataReceipt schema version")
         series = []
         for item in value.pop("series"):
@@ -162,6 +169,7 @@ class DataReceipt:
                 provenance["fetched_at"] = datetime.fromisoformat(
                     provenance["fetched_at"]
                 )
+            provenance["requests"] = tuple(RequestRecord(**r) for r in provenance.get("requests", ()))
             item["provenance"] = Provenance(**provenance)
             item["warnings"] = tuple(item["warnings"])
             series.append(PopulationSeries(**item))

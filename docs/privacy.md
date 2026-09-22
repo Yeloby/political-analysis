@@ -2,8 +2,10 @@
 
 Spørsmål skrevet i GUI tolkes lokalt med programmets parser. De sendes ikke til
 en språkmodell. Utvalgte dataforespørsler går til dataleverandørene når de ikke
-finnes i lokal cache. **CLI-kommandoen `search` sender søketeksten til SSB ved
-cachebom.** Det er derfor ikke riktig at alle spørsmål alltid forblir lokale.
+finnes i lokal cache. Programmet har en eksplisitt `--cache-only`-modus som
+forbyr alle nettverksforespørsler. **CLI-kommandoen `search` sender søketeksten
+til SSB bare når programmet er i online-modus og ingen lokal cache gir treff.**
+Det er derfor ikke riktig at alle spørsmål alltid forblir lokale.
 
 ## Hva sendes?
 
@@ -47,8 +49,15 @@ Det finnes foreløpig ingen knapp for å tømme cache. Lukk programmet før even
 manuell sletting av cachemappen. Dette sletter ikke eksporter, eldre sikkerhetskopier
 eller terminalhistorikk. Cachen kan fylles på igjen ved senere forespørsler.
 
+`--cache-only` og GUI-valg for «Kun lokal cache» hindrer alle nettverkskall; de
+forbyr kun lokal cache og kaster en tydelig feil ved cachebom. Dette er en
+nettverksgrense, ikke anonymitetsgaranti. Cachebruk er ikke et løfte om anonymitet
+eller fullstendig frakoblet drift. Avbryt stopper visning av foreldede resultater,
+men et pågående kildekall kan fortsatt fullføres.
+
 ## Begrensninger
 
-Ingen cache-only-modus eller felles nettverks-/personvernpolicy er implementert.
-Cachebruk er ikke et løfte om frakoblet drift eller anonymitet. Avbryt stopper
-visning av foreldede resultater, men et pågående kildekall kan fortsatt fullføres.
+Programmet har en liten, eksplisitt nettverks- og personvernpolicy for de
+støttede kildene, men den beskytter ikke mot en valgt nettverksforbindelse, en
+proxy, eller andre OS-/miljøregler. HTTPS skjuler ikke mot manglende godkjenning
+av kildens vertsnavn eller mot den faktiske publikumstrafikken på nettverket.

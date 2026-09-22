@@ -1,8 +1,8 @@
 from pathlib import Path
 
-import httpx
 import pandas as pd
 
+from ... import network
 from ...cache import FileCache
 
 NAV_UNEMPLOYMENT_URL = (
@@ -32,7 +32,7 @@ def unemployment_csv(
     if cached is not None:
         return cached
 
-    response = httpx.get(
+    response = network.request("nav", "unemployment_csv", "GET",
         NAV_UNEMPLOYMENT_URL,
         timeout=timeout,
         follow_redirects=True,

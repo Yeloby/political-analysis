@@ -15,7 +15,7 @@ def test_sources(monkeypatch):
         }
     ]
 
-    def fake_get(url, timeout):
+    def fake_get(url, timeout, **kwargs):
         return httpx.Response(
             200,
             json=payload,
@@ -41,7 +41,7 @@ def test_tables(monkeypatch):
         }
     ]
 
-    def fake_get(url, timeout):
+    def fake_get(url, timeout, **kwargs):
         return httpx.Response(
             200,
             json=payload,
@@ -63,7 +63,7 @@ def test_table_metadata(monkeypatch):
         "paragraphs": [],
     }
 
-    def fake_get(url, timeout):
+    def fake_get(url, timeout, **kwargs):
         return httpx.Response(
             200,
             json=payload,
@@ -93,7 +93,7 @@ def test_dimensions(monkeypatch):
         ]
     }
 
-    def fake_get(url, timeout):
+    def fake_get(url, timeout, **kwargs):
         return httpx.Response(
             200,
             json=payload,
@@ -115,7 +115,7 @@ def test_data_post(monkeypatch, limit):
     payload = {"id": ["x"], "value": [42]}
     dimensions = {"Atc_Verdi": ["A10BA02"], "Utlevering_Ar": ["2024", "2025"]}
 
-    def fake_post(url, *, json, timeout):
+    def fake_post(url, *, json, timeout, **kwargs):
         assert url == "https://statistikk-data.fhi.no/api/open/v1/lmr/Table/825/data"
         assert timeout == 7.5
         assert json == {

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import pandas as pd
 
+from . import network
 from .analysis import filter_since, observation_value, summarize_series
 from .catalog import get_dataset, get_source
 from .help import application_version
@@ -40,7 +41,10 @@ def analyze_population(
     series, transformations = [], []
     for index, place in enumerate(places):
         checkpoint()
-        municipality, frame = provider(place)
+        with network.observe_requests() as requests:
+            municipality, frame = provider(place)
+        mode = network.get_mode().value
+        access = frame.attrs.get("network_access") or {}
         checkpoint()
         returned_period = (
             (str(frame.iloc[0]["Tid_code"]), str(frame.iloc[-1]["Tid_code"]))
@@ -100,7 +104,10 @@ def analyze_population(
                 facts,
                 "status" in frame,
                 metadata_json,
-                Provenance(source_updated_at=updated),
+                Provenance(source_updated_at=updated,
+                           cache_hit=access.get("cache_hit"), fetched_at=access.get("fetched_at"),
+                           network_mode=mode, network_occurred=any(r.network_occurred for r in requests),
+                           requests=tuple(requests)),
                 tuple(warnings),
             )
         )

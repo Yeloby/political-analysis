@@ -4,8 +4,9 @@ from itertools import product
 from math import prod
 from typing import Any
 
-import httpx
 import pandas as pd
+
+from ... import network
 
 BASE_URL = "https://statistikk-data.fhi.no/api/open/v1"
 
@@ -32,8 +33,9 @@ class FhiClient:
         self.timeout = timeout
 
     def _get(self, path: str) -> Any:
-        response = httpx.get(
+        response = network.request("fhi", "metadata", "GET",
             f"{BASE_URL}/{path.lstrip('/')}",
+            cache_relationship="uncached",
             timeout=self.timeout,
         )
         response.raise_for_status()
@@ -108,9 +110,10 @@ class FhiClient:
             },
         }
 
-        response = httpx.post(
+        response = network.request("fhi", "table_data", "POST",
             f"{BASE_URL}/{source}/Table/{table_id}/data",
             json=query,
+            cache_relationship="uncached",
             timeout=self.timeout,
         )
         response.raise_for_status()

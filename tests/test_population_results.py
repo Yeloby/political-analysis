@@ -48,7 +48,8 @@ def analyze(data=None, places=("Ås",), since=None):
 def test_contract_structure_and_source_derived_separation():
     result = analyze()
     assert isinstance(result, AnalysisResult)
-    assert result.schema_version == result.receipt.schema_version == "1"
+    assert result.schema_version == "1"
+    assert result.receipt.schema_version == "2"
     assert result.chart_hint == "time_series"
     series = result.series[0]
     assert series.selection.municipality_code == "K-Ås"
@@ -95,7 +96,7 @@ def test_unknown_schema_rejected(kind):
         else:
             DataReceipt.from_json(
                 result.receipt.to_json().replace(
-                    '"schema_version": "1"', '"schema_version": "99"'
+                    '"schema_version": "2"', '"schema_version": "99"'
                 )
             )
 

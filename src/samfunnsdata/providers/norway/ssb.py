@@ -1,10 +1,11 @@
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import datetime
 from math import prod
 
-import httpx
 import pandas as pd
 
+from ... import network
 from ...cache import JsonCache
 
 BASE_URL = "https://data.ssb.no/api/pxwebapi/v2"
@@ -27,6 +28,7 @@ class SsbClient:
         self.language = language
         self.timeout = timeout
         self.cache = JsonCache()
+        self.last_data_access = None
 
     def search(self, query: str):
         params = {
@@ -38,8 +40,9 @@ class SsbClient:
         cached = self.cache.get("ssb-search", params)
 
         if cached is None:
-            response = httpx.get(
-                f"{BASE_URL}/tables",
+            response = network.request(
+                "ssb", "table_search", "GET", f"{BASE_URL}/tables",
+                free_text=True,
                 params=params,
                 timeout=self.timeout,
                 follow_redirects=True,
@@ -90,8 +93,8 @@ class SsbClient:
         cached = self.cache.get("ssb-codelist", cache_key)
 
         if cached is None:
-            response = httpx.get(
-                f"{BASE_URL}/codelists/{codelist_id}",
+            response = network.request(
+                "ssb", "codelist", "GET", f"{BASE_URL}/codelists/{codelist_id}",
                 params=params,
                 timeout=self.timeout,
                 follow_redirects=True,
@@ -109,11 +112,14 @@ class SsbClient:
             "lang": self.language,
         }
 
+        self.last_data_access = None
         cached = self.cache.get("ssb-data", cache_payload)
+        hit = cached is not None
+        fetched_at = None
 
         if cached is None:
-            response = httpx.get(
-                f"{BASE_URL}/tables/{table_id}/data",
+            response = network.request(
+                "ssb", "table_data", "GET", f"{BASE_URL}/tables/{table_id}/data",
                 params=[("lang", self.language), *params],
                 timeout=self.timeout,
                 follow_redirects=True,
@@ -121,6 +127,9 @@ class SsbClient:
             response.raise_for_status()
             cached = response.json()
             self.cache.set("ssb-data", cache_payload, cached)
+            fetched_at = datetime.fromisoformat(response.extensions["samfunnsdata_request"].completed_at)
+
+        self.last_data_access = {"cache_hit": hit, "fetched_at": fetched_at}
 
         return cached
 
@@ -291,6 +300,7 @@ def municipality_population(name: str):
 
     raw = client.get_data("07459", params)
     frame = jsonstat_to_frame(raw)
+    frame.attrs["network_access"] = client.last_data_access
 
     return municipality, frame
 

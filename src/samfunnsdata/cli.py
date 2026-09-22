@@ -1,5 +1,6 @@
 import argparse
 
+from . import network
 from .analysis import format_number
 from .charts import population_chart
 from .population import analyze_population
@@ -13,11 +14,13 @@ def main():
         description="Analyse norske offentlige data",
     )
 
+    parser.add_argument("--cache-only", action="store_true", help="Bruk bare lokal cache; ingen HTTP-kall")
+
     sub = parser.add_subparsers(dest="command", required=True)
 
     search = sub.add_parser(
         "search",
-        help="Søk etter SSB-tabeller",
+        help="Søk etter SSB-tabeller (søketeksten sendes til SSB ved cachebom)",
     )
     search.add_argument("query")
 
@@ -61,12 +64,20 @@ def main():
         command_parser.add_argument("--receipt", metavar="PATH",
                                     help="Lagre datakvittering som separat JSON-fil")
 
+    for command_parser in (search, population, compare):
+        command_parser.add_argument("--cache-only", action="store_true", default=argparse.SUPPRESS,
+                                    help="Bruk bare lokal cache; ingen HTTP-kall")
     args = parser.parse_args()
+    network.set_mode(network.NetworkMode.CACHE_ONLY if args.cache_only else network.NetworkMode.ONLINE)
 
     if args.command == "search":
         client = SsbClient()
 
-        for table in client.search(args.query):
+        try:
+            tables = client.search(args.query)
+        except network.NetworkError as error:
+            parser.error(str(error))
+        for table in tables:
             print(f"{table.id}\t{table.title}")
 
         return 0

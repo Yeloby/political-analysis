@@ -116,7 +116,9 @@ def receipt_text(receipt):
                 f"Returnert av kilden: {s.source_returned_period[0]}–{s.source_returned_period[1]}",
                 f"Faktisk brukt etter periodevalg: {f.first_year}–{f.last_year}",
                 f"Hentet fra kilden: {p.fetched_at.isoformat() if p.fetched_at else unknown}",
-                f"Cachetreff: {cache}",
+                f"Cachetreff for befolkningsdata: {cache}",
+                f"Nettverksmodus ved bruk: {p.network_mode or unknown}",
+                f"Kildekontakt i operasjonen: {unknown if p.network_occurred is None else ('Ja' if p.network_occurred else 'Nei')}",
                 f"Kildeoppdatering: {p.source_updated_at or unknown}",
                 "Kildeobservasjoner (SSB):",
             )
@@ -139,8 +141,19 @@ def receipt_text(receipt):
             "",
             "Tekniske detaljer",
             "JSON viser utvalg, status, beregninger og kildemetadata.",
-            "Ukjent hentetid, cachestatus og innholdshash er null. Cachefilnavn er ikke innholdshash.",
+            "Ukjente proveniensfelt er null. Cachefilnavn er ikke innholdshash. Nettverksadresser viser bare opprinnelsesvert, uten sti eller søketekst.",
             receipt.to_json(),
         )
     )
     return "\n".join(lines)
+
+
+def source_activity(result):
+    provenance = [s.provenance for s in result.series]
+    if all(p.cache_hit is True for p in provenance):
+        return "Data: hentet fra cache"
+    if all(p.cache_hit is False and p.fetched_at is not None for p in provenance):
+        return "Data: hentet fra kilden nå"
+    if all(p.cache_hit is not None for p in provenance):
+        return "Data: delvis cache, delvis hentet fra kilden nå"
+    return "Data: hentemåte ukjent"

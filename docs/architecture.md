@@ -89,7 +89,10 @@ Ingen fil-mtime leses som kildehentetid. Ingen historiske cacheposter omskrives.
 Cachefilens SHA-256 identifiserer forespørselen, ikke responsinnholdet, og brukes
 aldri som innholdshash. JsonCache publiserer JSON atomisk og behandler korrupt JSON
 som cachebom (milepæl A). Cachen lagrer reserialisert JSON, ikke originale HTTP-bytes.
-Ingen generell TTL, cache-only-modus eller cachemanifest er innført.
+Det finnes en eksplisitt `ONLINE`/`CACHE_ONLY`-modi i den delte nettverksgrensen.
+`CACHE_ONLY` tillater bare lokale cachetreff og feiler tydelig ved cachebom uten å
+lage nye HTTP-kall. Det finnes ikke et bredt cachemanifest som er nødvendig for
+nåværende datamodeller; eldre cacheposter leses fortsatt som før.
 
 `None` skiller ukjent fra `False`, nullverdi og tom liste. Tom advarselliste betyr
 ingen påviste advarsler i disse kontrollene, ikke komplett kvalitetsgaranti.
