@@ -35,51 +35,87 @@ class SsbClient:
             "query": query,
             "lang": self.language,
             "pagesize": 100,
+            "page": 1,
         }
+        seen_pages: set[int] = set()
+        seen_ids: set[str] = set()
+        results: list[SsbTable] = []
 
-        cached = self.cache.get("ssb-search", params)
+        while True:
+            page = int(params["page"])
+            if page in seen_pages:
+                raise ValueError("SSB-tabellsøk returnerte samme side uten å gå fremover.")
+            seen_pages.add(page)
 
-        if cached is None:
-            response = network.request(
-                "ssb", "table_search", "GET", f"{BASE_URL}/tables",
-                free_text=True,
-                params=params,
-                timeout=self.timeout,
-                follow_redirects=True,
-            )
-            response.raise_for_status()
-            cached = response.json()
-            self.cache.set("ssb-search", params, cached)
+            cached = self.cache.get("ssb-search", params)
+            current = None
+            if cached is None:
+                response = network.request(
+                    "ssb", "table_search", "GET", f"{BASE_URL}/tables",
+                    free_text=True,
+                    params=params,
+                    timeout=self.timeout,
+                    follow_redirects=True,
+                )
+                response.raise_for_status()
+                current = response.json()
+                self.cache.set("ssb-search", params, current)
+            else:
+                current = cached
 
-        if isinstance(cached, list):
-            items = cached
-        else:
-            items = (
-                cached.get("tables")
-                or cached.get("items")
-                or cached.get("data")
-                or []
-            )
+            if isinstance(current, list):
+                items = current
+                total_pages = None
+            elif isinstance(current, dict):
+                items = (
+                    current.get("items")
+                    or current.get("tables")
+                    or current.get("data")
+                    or []
+                )
+                total_pages = (
+                    current.get("pages")
+                    or current.get("totalPages")
+                    or current.get("pageCount")
+                    or current.get("total_pages")
+                    or None
+                )
+            else:
+                items = []
+                total_pages = None
 
-        results = []
-
-        for item in items:
-            table_id = str(
-                item.get("id")
-                or item.get("tableId")
-                or item.get("code")
-                or ""
-            )
-
-            title = str(
-                item.get("label")
-                or item.get("title")
-                or item.get("text")
-                or table_id
-            )
-
-            if table_id:
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                table_id = str(
+                    item.get("id")
+                    or item.get("tableId")
+                    or item.get("code")
+                    or ""
+                )
+                if not table_id or table_id in seen_ids:
+                    continue
+                title = str(
+                    item.get("label")
+                    or item.get("title")
+                    or item.get("text")
+                    or table_id
+                )
+                seen_ids.add(table_id)
                 results.append(SsbTable(table_id, title))
+
+            if total_pages is not None:
+                total_pages = int(total_pages)
+                if page >= total_pages:
+                    break
+            if not items:
+                break
+            if total_pages is None and len(items) < int(params["pagesize"]):
+                break
+            next_page = page + 1
+            params["page"] = next_page
+            if next_page > 20:
+                break
 
         return results
 

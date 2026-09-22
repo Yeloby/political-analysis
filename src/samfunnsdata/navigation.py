@@ -6,7 +6,15 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gio, GLib, Gtk
 
 from . import network
-from .catalog import SOURCES, SupportStatus, find_datasets, get_source
+from .catalog import (
+    SOURCES,
+    SupportStatus,
+    _ssb_snapshot_path,
+    find_datasets,
+    get_source,
+    load_discovered_ssb_snapshot,
+    refresh_ssb_discovery_snapshot,
+)
 from .help import ATTRIBUTION, DESCRIPTION, TAGLINE, application_version, help_sections
 
 
@@ -28,27 +36,44 @@ def text_window(parent, title: str, text: str) -> Gtk.Window:
 def dataset_description(dataset) -> str:
     """Human-facing metadata; unknown values are explicit, never inferred."""
     source = get_source(dataset.provider)
+    table_id = getattr(dataset, "table_id", None) or getattr(dataset, "id", "")
+    access_url = getattr(dataset, "access_url", None) or "Ikke registrert"
+    item_format = getattr(dataset, "format", None) or "Ikke registrert"
+    source_url = getattr(dataset, "source_url", None) or source.url
+    period = getattr(dataset, "period", "Ikke registrert")
+    dimensions = getattr(dataset, "dimensions", None) or ()
+    measures = getattr(dataset, "measures", None) or ()
+    unit = getattr(dataset, "unit", "Ikke registrert")
+    definition = getattr(dataset, "definition", "Ikke registrert")
+    updated_at = getattr(dataset, "updated_at", None) or "Ikke registrert"
+    official_statistics = getattr(dataset, "official_statistics", None)
+    limitations = getattr(dataset, "limitations", None) or ()
+    methodology = getattr(dataset, "methodology", None) or ()
+    series_breaks = getattr(dataset, "series_breaks", None) or ()
+
     lines = [
-        dataset.title, dataset.support_label, dataset.description,
+        getattr(dataset, "title", "Uten tittel"),
+        getattr(dataset, "support_label", "Uten støtte-status"),
+        getattr(dataset, "description", "Beskrivelse mangler."),
         f"Kilde: {source.authority}",
-        f"Datasett: {dataset.table_id or dataset.id}",
-        f"Dataadresse: {dataset.access_url or 'Ikke registrert'}",
-        f"Format: {dataset.format or 'Ikke registrert'}",
-        f"Kildeinformasjon: {dataset.source_url or source.url}",
-        f"Periode: {dataset.period}",
-        f"Dimensjoner: {', '.join(dataset.dimensions)}",
-        f"Måltall: {', '.join(dataset.measures)}",
-        f"Enhet: {dataset.unit}",
-        f"Definisjon: {dataset.definition}",
-        f"Oppdatert hos kilden: {dataset.updated_at or 'Ikke registrert'}",
+        f"Datasett: {table_id}",
+        f"Dataadresse: {access_url}",
+        f"Format: {item_format}",
+        f"Kildeinformasjon: {source_url}",
+        f"Periode: {period}",
+        f"Dimensjoner: {', '.join(dimensions)}",
+        f"Måltall: {', '.join(measures)}",
+        f"Enhet: {unit}",
+        f"Definisjon: {definition}",
+        f"Oppdatert hos kilden: {updated_at}",
         "Offisiell statistikk: " + (
-            "Ikke registrert" if dataset.official_statistics is None
-            else "Ja" if dataset.official_statistics else "Nei"
+            "Ikke registrert" if official_statistics is None
+            else "Ja" if official_statistics else "Nei"
         ),
     ]
-    lines.extend(f"Begrensning: {item}" for item in dataset.limitations)
-    lines.extend(f"Metode: {item}" for item in dataset.methodology)
-    lines.extend(f"Seriebrudd: {item}" for item in dataset.series_breaks)
+    lines.extend(f"Begrensning: {item}" for item in limitations)
+    lines.extend(f"Metode: {item}" for item in methodology)
+    lines.extend(f"Seriebrudd: {item}" for item in series_breaks)
     return "\n".join(lines)
 
 
@@ -67,30 +92,78 @@ def catalog_window(parent) -> Gtk.Window:
     filters.append(source)
     filters.append(status)
     box.append(filters)
-    view = Gtk.TextView(editable=False, cursor_visible=False, wrap_mode=Gtk.WrapMode.WORD_CHAR)
-    scroll = Gtk.ScrolledWindow(vexpand=True)
-    scroll.set_child(view)
-    box.append(scroll)
-    details = Gtk.TextView(editable=False, cursor_visible=False,
-                           wrap_mode=Gtk.WrapMode.WORD_CHAR)
-    details_scroll = Gtk.ScrolledWindow(min_content_height=180)
-    details_scroll.set_child(details)
-    expander = Gtk.Expander(label="Vis dimensjoner, måltall og metode for treffene")
-    expander.set_child(details_scroll)
-    box.append(expander)
+
+    split = Gtk.Paned.new(Gtk.Orientation.HORIZONTAL)
+    split.set_wide_handle(True)
+    listbox = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
+    listbox.set_vexpand(True)
+    listbox.set_size_request(300, -1)
+    detail_scroll = Gtk.ScrolledWindow(vexpand=True)
+    details = Gtk.TextView(editable=False, cursor_visible=False, wrap_mode=Gtk.WrapMode.WORD_CHAR)
+    detail_scroll.set_child(details)
+    split.set_start_child(listbox)
+    split.set_end_child(detail_scroll)
+    box.append(split)
+    window.catalog_listbox = listbox
+    window.catalog_details = details
+    window.catalog_matches = []
+
+    def show_selected(*_args):
+        row = listbox.get_selected_row()
+        if row is None:
+            details.get_buffer().set_text("Velg et datasett for å lese mer.")
+            return
+        dataset = getattr(row, "dataset", None)
+        if dataset is None:
+            details.get_buffer().set_text("Velg et datasett for å lese mer.")
+            return
+        details.get_buffer().set_text(dataset_description(dataset))
+
+    listbox.connect("row-selected", show_selected)
 
     def refresh(*_args):
         provider = None if source.get_selected() == 0 else SOURCES[source.get_selected() - 1].id
         support = None if status.get_selected() == 0 else tuple(SupportStatus)[status.get_selected() - 1]
         matches = find_datasets(search.get_text(), provider=provider, support=support)
-        details.get_buffer().set_text("\n\n────────────────────\n\n".join(
-            dataset_description(x) for x in matches
-        ))
-        text = "\n\n".join(
-            f"{x.title}\n{x.support_label}\n{x.description}\n"
-            f"{get_source(x.provider).authority} · {x.period}" for x in matches
-        )
-        view.get_buffer().set_text(text or "Ingen treff i den lokale katalogen. Andre data kan finnes hos kilden.")
+        window.catalog_matches = matches
+        while True:
+            child = listbox.get_first_child()
+            if child is None:
+                break
+            listbox.remove(child)
+
+        if not matches:
+            row = Gtk.ListBoxRow()
+            label = Gtk.Label(label="Ingen treff i den lokale katalogen. Andre data kan finnes hos kilden.")
+            label.set_xalign(0)
+            label.set_wrap(True)
+            row.set_child(label)
+            listbox.append(row)
+            details.get_buffer().set_text("Ingen treff i den lokale katalogen. Andre data kan finnes hos kilden.")
+            return
+
+        for dataset in matches:
+            row = Gtk.ListBoxRow()
+            row.dataset = dataset
+            content = Gtk.Box(spacing=12)
+            content.set_margin_top(8)
+            content.set_margin_bottom(8)
+            content.set_margin_start(12)
+            content.set_margin_end(12)
+            title = Gtk.Label(label=dataset.title)
+            title.set_xalign(0)
+            title.set_hexpand(True)
+            status_label = Gtk.Label(label=dataset.support_label)
+            status_label.set_xalign(1)
+            content.append(title)
+            content.append(status_label)
+            row.set_child(content)
+            listbox.append(row)
+
+        if matches:
+            first = listbox.get_row_at_index(0)
+            listbox.select_row(first)
+            details.get_buffer().set_text(dataset_description(matches[0]))
 
     search.connect("search-changed", refresh)
     source.connect("notify::selected", refresh)
@@ -182,7 +255,26 @@ def install_navigation(window, box, manual_widgets) -> None:
                 action.set_enabled(widget.get_sensitive())
         button.connect("notify::sensitive", sync)
         sync(button)
+    def refresh_catalog():
+        def work(token):
+            if network.get_mode() == network.NetworkMode.CACHE_ONLY:
+                path = _ssb_snapshot_path()
+                if path.exists():
+                    return load_discovered_ssb_snapshot(path)
+                raise network.CacheOnlyMiss(
+                    "Datakatalogen ligger bare i lokal cache og finnes ikke lokalt. "
+                    "Skru av cache-only for å oppdatere katalogen."
+                )
+            return refresh_ssb_discovery_snapshot()
+
+        def apply(_datasets):
+            window.status.set_text("Datakatalog oppdatert. Nye SSB-tabeller ligger nå i den lokale katalogen.")
+
+        if not window.jobs.active:
+            window.jobs.submit(work, apply)
+
     add("quit", lambda: window.get_application().quit())
+    add("refresh-datasets", refresh_catalog)
     add("datasets", lambda: catalog_window(window))
     add("sources", lambda: text_window(window, "Datakilder", "\n\n".join(
         f"{source.authority}\n{source.url}\n"
@@ -227,8 +319,8 @@ def install_navigation(window, box, manual_widgets) -> None:
 
     menus = (
         ("Fil", (("Ny analyse", "new-analysis"), ("Eksporter CSV", "export-data"), ("Avslutt", "quit"))),
-        ("Data", (("Bla i datasett", "datasets"), ("Datakilder", "sources"),
-                  ("Rådata", "raw-data"), ("Kildeinformasjon", "source-info"),
+        ("Data", (("Bla gjennom datakatalog", "datasets"), ("Oppdater datakatalog", "refresh-datasets"),
+                  ("Datakilder", "sources"), ("Rådata", "raw-data"), ("Kildeinformasjon", "source-info"),
                   ("Kun lokal cache", "cache-only"))),
         ("Vis", (("Manuelle befolkningsvalg", "manual"),)),
         ("Hjelp", (("Brukerveiledning", "help"), ("Om Samfunnsdata", "about"))),

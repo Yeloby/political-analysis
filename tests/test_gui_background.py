@@ -12,7 +12,7 @@ gi = pytest.importorskip("gi")
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gtk
 
-from samfunnsdata import gui_work
+from samfunnsdata import gui_work, navigation
 
 pytestmark = pytest.mark.skipif(
     not Gtk.init_check(), reason="GTK display required (use xvfb-run)"
@@ -128,6 +128,66 @@ def test_all_analysis_paths_work_off_main_thread(window, monkeypatch, path):
         assert [o.status for o in window.current_series[0][1].source_observations] == ["", ""]
     if path.endswith("compare") and not path.startswith("population"):
         assert "Forskjell i 2025: 0,00" in window.result.get_text()
+
+
+def test_catalog_menu_and_refresh_action_exist(window, monkeypatch):
+    assert window.lookup_action("datasets") is not None
+    assert window.lookup_action("refresh-datasets") is not None
+
+    datasets = [
+        SimpleNamespace(
+            id="ssb-07459-population",
+            provider="ssb",
+            title="Befolkning",
+            support=navigation.SupportStatus.SUPPORTED,
+            support_label="Støttet: Python/API",
+            description="Lokalt støttet befolkningsdatasett.",
+        ),
+        SimpleNamespace(
+            id="ssb-discovered-table",
+            provider="ssb",
+            title="Oppdaget tabell",
+            support=navigation.SupportStatus.DISCOVERED,
+            support_label="Katalogisert – analyse ikke tilgjengelig",
+            description="Oppdaget katalogmetadata uten analyseimplementasjon.",
+        ),
+        SimpleNamespace(
+            id="ssb-planned-table",
+            provider="ssb",
+            title="Planlagt tabell",
+            support=navigation.SupportStatus.PLANNED,
+            support_label="Planlagt – ikke støttet",
+            description="Planlagt katalogpost.",
+        ),
+    ]
+    monkeypatch.setattr(navigation, "find_datasets", lambda *_args, **_kwargs: datasets)
+    catalog = navigation.catalog_window(window)
+    assert catalog.get_title() == "Bla i datasett"
+    count = 0
+    texts = []
+    child = catalog.catalog_listbox.get_first_child()
+    while child is not None:
+        count += 1
+        row = child.get_child()
+        if isinstance(row, Gtk.Box):
+            first = row.get_first_child()
+            if first is not None and hasattr(first, "get_text"):
+                texts.append(first.get_text())
+            second = first.get_next_sibling() if first is not None else None
+            if second is not None and hasattr(second, "get_text"):
+                texts.append(second.get_text())
+        child = child.get_next_sibling()
+    assert count == 3
+    assert any("Katalogisert – analyse ikke tilgjengelig" in text for text in texts)
+
+    refresh = window.lookup_action("refresh-datasets")
+    work_calls = []
+    real_refresh = navigation.refresh_ssb_discovery_snapshot
+    monkeypatch.setattr(navigation, "refresh_ssb_discovery_snapshot", lambda *args, **kwargs: (work_calls.append("called") or ()))
+    refresh.activate(None)
+    pump_until(lambda: work_calls)
+    assert work_calls == ["called"]
+    monkeypatch.setattr(navigation, "refresh_ssb_discovery_snapshot", real_refresh)
 
 
 @pytest.mark.parametrize("old_error", [False, True])

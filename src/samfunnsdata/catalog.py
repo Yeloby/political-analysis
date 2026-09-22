@@ -328,7 +328,7 @@ def _load_ssb_snapshot(path: Path | None = None) -> tuple[Dataset, ...]:
     datasets = []
     for index, record in enumerate(records):
         if not isinstance(record, dict):
-            raise TypeError(f"Snapshot tabell {index} er ikke et objekt.")
+            continue
         try:
             datasets.append(_dataset_from_record(record, provider="ssb"))
         except ValueError:

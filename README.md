@@ -44,17 +44,19 @@ Kommandolinjeverktøyet heter `samfunnsdata`. Se tilgjengelige kommandoer med
 
 ## Navigasjon og dokumentasjon
 
-Fil-menyen gir ny analyse og CSV-eksport. Data-menyen viser den lokale
-katalogen, datakilder og rådata/kildeinformasjon for analyseresultatet.
-Vis-menyen åpner manuelle befolkningsvalg. Hjelp-menyen inneholder en
-frakoblet brukerveiledning og Om Samfunnsdata.
+Fil-menyen gir ny analyse og CSV-eksport. Data-menyen har «Bla gjennom
+datakatalog» for den lokale katalogen, «Oppdater datakatalog» for å oppdatere
+SSB-metadata i bakgrunnen, datakilder og rådata/kildeinformasjon for
+analyseresultatet. Vis-menyen åpner manuelle befolkningsvalg. Hjelp-menyen
+inneholder en frakoblet brukerveiledning og Om Samfunnsdata.
 
 Katalogen skiller mellom støttet, katalogisert og planlagt, og viser hvilke
 grensesnitt som er implementert. «Katalogisert» betyr at metadata er oppdaget,
 men at Samfunnsdata ikke kan analysere tabellen uten en egen, lokale og
 eksplisitt støttet adapter. Oppdagede tabeller blir ikke automatisk
-kjørbare. Se [arkitektur og migreringsplan](docs/architecture.md) for videre
-arbeid med oppdagelse, adaptere og datakvitteringer.
+kjørbare, og de får ikke en analyseknapp i katalogen. Se [arkitektur og
+migreringsplan](docs/architecture.md) for videre arbeid med oppdagelse,
+adaptere og datakvitteringer.
 
 ## Datakvittering og personvern
 

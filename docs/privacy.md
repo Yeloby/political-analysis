@@ -55,7 +55,9 @@ SSB-datakatalogen bruker også denne grensen: uten lokal snapshot feiler
 katalogoppdateringen uten at programmet faller tilbake til online-modus. Dette er
 en nettverksgrense, ikke anonymitetsgaranti. Cachebruk er ikke et løfte om
 anonymitet eller fullstendig frakoblet drift. Avbryt stopper visning av
-foreldede resultater, men et pågående kildekall kan fortsatt fullføres.
+foreldede resultater, men et pågående kildekall kan fortsatt fullføres. Data →
+Oppdater datakatalog kjører i bakgrunn og bruker samme cache-only-regel som
+andra nettverk. Oppdateringen henter bare katalogmetadata, ikke observasjonsdata.
 
 ## Begrensninger
 

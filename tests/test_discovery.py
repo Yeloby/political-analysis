@@ -3,6 +3,7 @@ import json
 import pytest
 
 from samfunnsdata import catalog, network
+from samfunnsdata.cache import JsonCache
 from samfunnsdata.catalog import (
     SupportStatus,
     _dataset_from_record,
@@ -102,3 +103,117 @@ def test_unsupported_remote_metadata_is_ignored_in_registry_merge():
     assert dataset.support == SupportStatus.DISCOVERED
     assert dataset.queryable is False
     assert dataset.adapter is None
+
+
+def test_supported_support_is_not_upgraded_by_remote_discovery():
+    local = catalog.Dataset(
+        id="ssb-07459-population",
+        provider="ssb",
+        title="Befolkning",
+        topic="demography",
+        source="SSB",
+        geography=("municipality",),
+        time_resolution="year",
+        dimensions=("geography", "year"),
+        unit="persons",
+        description="Lokalt støttet datasett.",
+        period="1986–",
+        measures=("population",),
+        definition="Lokalt definert og støttet.",
+        support=SupportStatus.SUPPORTED,
+        adapter="samfunnsdata.providers.norway.ssb:municipality_population",
+        interfaces=("python", "gui", "cli"),
+        table_id="07459",
+    )
+    registry = catalog.DatasetRegistry(curated=(local,), discovered=())
+    remote = _dataset_from_record({"id": "07459", "title": "Befolkning", "support": "discovered"}, provider="ssb")
+
+    result = registry.register_discovered(remote)
+
+    assert result is local
+    assert result.support == SupportStatus.SUPPORTED
+
+
+def test_planned_support_is_preserved_across_discovery_merge():
+    local = catalog.Dataset(
+        id="ssb-planned-table",
+        provider="ssb",
+        title="Planlagt tabell",
+        topic="demography",
+        source="SSB",
+        geography=("municipality",),
+        time_resolution="year",
+        dimensions=("geography", "year"),
+        unit="persons",
+        description="Planlagt datasett.",
+        period="2020–2024",
+        measures=("population",),
+        definition="Lokalt planlagt.",
+        support=SupportStatus.PLANNED,
+        table_id="98765",
+    )
+    registry = catalog.DatasetRegistry(curated=(local,), discovered=())
+    remote = _dataset_from_record({"id": "98765", "title": "Planlagt tabell", "support": "discovered"}, provider="ssb")
+
+    result = registry.register_discovered(remote)
+
+    assert result is local
+    assert result.support == SupportStatus.PLANNED
+
+
+def test_remote_executor_fields_do_not_create_executable_metadata():
+    dataset = _dataset_from_record(
+        {
+            "id": "bad-001",
+            "title": "Skadelig tabell",
+            "adapter": "evil.module.Class",
+            "module": "subprocess",
+            "class": "os.system",
+            "support": "discovered",
+        },
+        provider="ssb",
+    )
+
+    assert dataset.support == SupportStatus.DISCOVERED
+    assert dataset.adapter is None
+    assert dataset.interfaces == ()
+
+
+def test_snapshot_rejects_invalid_or_malformed_payloads(tmp_path):
+    bad_json = tmp_path / "bad.json"
+    bad_json.write_text("{not valid json}", encoding="utf-8")
+    with pytest.raises(ValueError):
+        catalog._load_ssb_snapshot(bad_json)
+
+    wrong_version = tmp_path / "wrong-version.json"
+    wrong_version.write_text(json.dumps({"schema_version": 2, "tables": []}), encoding="utf-8")
+    with pytest.raises(ValueError):
+        catalog._load_ssb_snapshot(wrong_version)
+
+    malformed = tmp_path / "malformed.json"
+    malformed.write_text(json.dumps({"schema_version": 1, "tables": ["nope", {"id": "abc"}] }), encoding="utf-8")
+    datasets = catalog._load_ssb_snapshot(malformed)
+    assert datasets[0].id == "ssb-abc"
+
+
+def test_ssb_search_traverses_pages_and_deduplicates(monkeypatch, tmp_path):
+    calls = []
+    pages = {
+        1: {"page": 1, "pages": 2, "items": [{"id": "1", "label": "A"}, {"id": "2", "label": "B"}]},
+        2: {"page": 2, "pages": 2, "items": [{"id": "2", "label": "B"}, {"id": "3", "label": "C"}]},
+    }
+
+    def fake_request(source, purpose, method, url, **kwargs):
+        calls.append(kwargs.get("params", {}).copy())
+        page = int(kwargs.get("params", {}).get("page", 1))
+        payload = pages[page]
+        return type("Resp", (), {"json": lambda self: payload, "raise_for_status": lambda self: None})()
+
+    monkeypatch.setattr("samfunnsdata.network.request", fake_request)
+    client = __import__("samfunnsdata.providers.norway.ssb", fromlist=["SsbClient"]).SsbClient()
+    client.cache = JsonCache(root=tmp_path)
+
+    tables = client.search("test")
+
+    assert [table.id for table in tables] == ["1", "2", "3"]
+    assert calls == [{"query": "test", "lang": "no", "pagesize": 100, "page": 1}, {"query": "test", "lang": "no", "pagesize": 100, "page": 2}]
