@@ -3,30 +3,13 @@ import pytest
 
 gi = pytest.importorskip("gi")
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gio, Gtk
+from gi.repository import Gtk
+from test_gui_jobs import pump_until
 
-from samfunnsdata.gui import SamfunnsdataWindow
 from samfunnsdata.help import ATTRIBUTION
 from samfunnsdata.navigation import about_window, catalog_window, help_window
 
 pytestmark = pytest.mark.skipif(not Gtk.init_check(), reason="GTK display required (use xvfb-run)")
-
-
-@pytest.fixture(scope="module")
-def app():
-    app = Gtk.Application(application_id="io.github.Yeloby.Samfunnsdata.Test",
-                          flags=Gio.ApplicationFlags.NON_UNIQUE)
-    app.register(None)
-    yield app
-    app.quit()
-
-
-@pytest.fixture
-def window(app):
-    window = SamfunnsdataWindow(app)
-    yield window
-    for child in list(Gtk.Window.list_toplevels()):
-        child.destroy()
 
 
 def children(widget):
@@ -108,9 +91,8 @@ def test_election_comparison_periods(window, monkeypatch, provider, handler, yea
     from types import SimpleNamespace
 
     import pandas as pd
-    from matplotlib.figure import Figure
 
-    from samfunnsdata import gui
+    from samfunnsdata import gui_work
 
     first = pd.DataFrame({"party_name": ["A"] * 3, "year": years, "percent": [10, 20, 30]})
     second_years = years[:-1] if case == "different" else years
@@ -120,12 +102,10 @@ def test_election_comparison_periods(window, monkeypatch, provider, handler, yea
                            "percent": [5] * len(second_years)})
     if case == "missing":
         second.loc[len(second) - 1, "percent"] = float("nan")
-    monkeypatch.setattr(gui, provider, lambda **kw: first if kw["party_code"] == "A" else second)
-    monkeypatch.setattr(Figure, "savefig", lambda *_a, **_kw: None)
-    pixbuf = gui.GdkPixbuf.Pixbuf.new(gui.GdkPixbuf.Colorspace.RGB, False, 8, 1, 1)
-    monkeypatch.setattr(gui.GdkPixbuf.Pixbuf, "new_from_file", lambda *_: pixbuf)
+    monkeypatch.setattr(gui_work, provider, lambda **kw: first if kw["party_code"] == "A" else second)
     question = SimpleNamespace(municipality="Test", first_party_code="A", second_party_code="B", since=None)
     getattr(window, handler)(question)
+    pump_until(lambda: not window.jobs.active)
     if case in {"missing", "no_common"}:
         assert "kan ikke sammenlignes" in window.status.get_text().lower()
         assert "Forskjell i" not in window.result.get_text()
@@ -140,19 +120,19 @@ def test_election_comparison_periods(window, monkeypatch, provider, handler, yea
 def test_population_gui_missing_endpoints(window, monkeypatch, values):
     from types import SimpleNamespace
 
-    import matplotlib.pyplot as plt
     import pandas as pd
 
-    from samfunnsdata import gui
+    from samfunnsdata import gui_work
 
     frame = pd.DataFrame({"Tid_code": ["2024", "2025"], "value": values})
-    monkeypatch.setattr(gui, "municipality_population", lambda _: (SimpleNamespace(name="Test"), frame))
-    monkeypatch.setattr(window, "_display_chart", plt.close)
+    monkeypatch.setattr(gui_work, "municipality_population", lambda _: (SimpleNamespace(name="Test"), frame))
     window.place.set_text("Test")
     window.on_analyze(None)
+    pump_until(lambda: not window.jobs.active)
     assert "2025" in window.status.get_text()
     assert "ikke beregnbart" in window.result.get_text()
     window.on_show_raw(None)
+    pump_until(lambda: not window.jobs.active)
 
 
 def test_chart_temp_files_unique_cleaned_and_pixels_loaded(window, monkeypatch):
@@ -160,30 +140,36 @@ def test_chart_temp_files_unique_cleaned_and_pixels_loaded(window, monkeypatch):
 
     import matplotlib.pyplot as plt
 
-    seen = []
-    for _ in range(3):
-        fig, ax = plt.subplots(figsize=(1, 1))
-        ax.plot([0, 1])
-        save = fig.savefig
+    from samfunnsdata import gui_work
+    from samfunnsdata.gui_jobs import JobToken
 
-        def capture(path, save=save, **kwargs):
-            seen.append(Path(path))
-            assert Path(path).is_file()
-            save(path, **kwargs)
-        monkeypatch.setattr(fig, "savefig", capture)
-        window._display_chart(fig)
+    seen = []
+    for i in range(3):
+        with gui_work.chart_session(JobToken(i)):
+            fig, ax = plt.subplots(figsize=(1, 1))
+            ax.plot([0, 1])
+            save = fig.savefig
+
+            def capture(path, save=save, **kwargs):
+                seen.append(Path(path))
+                assert Path(path).is_file()
+                save(path, **kwargs)
+            monkeypatch.setattr(fig, "savefig", capture)
+            png = gui_work.render_chart(fig)
+        window._apply_analysis({"chart": png, "result": (False, "test"),
+                                "status": "done", "source": "test", "series": [], "kind": "population"})
         assert window.chart.get_paintable() is not None
         assert not seen[-1].exists()
         assert not plt.fignum_exists(fig.number)
     assert len(set(seen)) == 3
-    fig = plt.figure()
 
     def fail(path, **_kwargs):
         seen.append(Path(path))
         raise OSError("Synthetic render failure")
-    monkeypatch.setattr(fig, "savefig", fail)
-    with pytest.raises(OSError):
-        window._display_chart(fig)
+    with pytest.raises(OSError), gui_work.chart_session(JobToken(4)):
+        fig = plt.figure()
+        monkeypatch.setattr(fig, "savefig", fail)
+        gui_work.render_chart(fig)
     assert not seen[-1].exists()
     assert not plt.fignum_exists(fig.number)
 
@@ -201,6 +187,7 @@ def test_population_export_preserves_status_and_null(window, tmp_path):
         def save_finish(self, _result):
             return Gio.File.new_for_path(str(path))
     window.on_export_finished(Dialog(), None)
+    pump_until(lambda: not window.jobs.active)
     output = pd.read_csv(path)
     assert output["Innbyggere"].iloc[0] == 0
     assert pd.isna(output["Innbyggere"].iloc[1])

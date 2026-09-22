@@ -149,6 +149,7 @@ def install_navigation(window, box, manual_widgets) -> None:
         return action
 
     def reset():
+        window.jobs.cancel()
         window.current_series = []
         window.current_kind = None
         for entry in (window.question, window.place, window.compare_place, window.since):
