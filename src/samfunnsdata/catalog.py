@@ -1,5 +1,15 @@
+from __future__ import annotations
+
+import json
+import os
+import tempfile
+from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
+
+from .config import CACHE_DIR
 
 
 class SupportStatus(StrEnum):
@@ -13,14 +23,400 @@ class Source:
     id: str
     authority: str
     url: str
+    provider: str | None = None
+    official_reference: str | None = None
+    discovery_capable: bool = False
 
 
 SOURCES = (
-    Source("ssb", "Statistisk sentralbyrå", "https://www.ssb.no"),
-    Source("fhi", "Folkehelseinstituttet", "https://www.fhi.no"),
-    Source("nav", "NAV", "https://www.nav.no"),
-    Source("elections", "Valgdirektoratet", "https://valgresultat.no"),
+    Source(
+        "ssb",
+        "Statistisk sentralbyrå",
+        "https://www.ssb.no",
+        provider="ssb",
+        official_reference="https://www.ssb.no/tjenester/pxweb",
+        discovery_capable=True,
+    ),
+    Source(
+        "fhi",
+        "Folkehelseinstituttet",
+        "https://www.fhi.no",
+        provider="fhi",
+        official_reference="https://statistikk-data.fhi.no",
+        discovery_capable=False,
+    ),
+    Source(
+        "nav",
+        "NAV",
+        "https://www.nav.no",
+        provider="nav",
+        official_reference="https://www.nav.no",
+        discovery_capable=False,
+    ),
+    Source(
+        "elections",
+        "Valgdirektoratet",
+        "https://valgresultat.no",
+        provider="elections",
+        official_reference="https://valgresultat.no",
+        discovery_capable=False,
+    ),
 )
+
+
+class SourceRegistry:
+    def __init__(self, sources: Iterable[Source] = SOURCES):
+        self._sources = {source.id: source for source in sources}
+
+    def list(self) -> tuple[Source, ...]:
+        return tuple(self._sources.values())
+
+    def get(self, source_id: str) -> Source:
+        try:
+            return self._sources[source_id]
+        except KeyError as exc:
+            raise KeyError(f"Ukjent datakilde: {source_id}") from exc
+
+    def by_provider(self, provider: str) -> Source | None:
+        for source in self._sources.values():
+            if source.provider == provider:
+                return source
+        return None
+
+
+SOURCE_REGISTRY = SourceRegistry()
+
+
+def _canonical_dataset_key(provider: str | None, table_id: str | None) -> str | None:
+    if not provider or not table_id:
+        return None
+    return f"{provider}:{table_id}"
+
+
+def _normalize_remote_support(value: object) -> SupportStatus:
+    if value is None:
+        return SupportStatus.DISCOVERED
+    if isinstance(value, SupportStatus):
+        if value == SupportStatus.SUPPORTED:
+            raise TypeError("Remote metadata kan ikke erklære datasettet som støttet.")
+        return value
+    if isinstance(value, str):
+        try:
+            support = SupportStatus(value.casefold())
+        except ValueError as exc:
+            raise TypeError("support må være en SupportStatus.") from exc
+        if support == SupportStatus.SUPPORTED:
+            raise TypeError("Remote metadata kan ikke erklære datasettet som støttet.")
+        return support
+    raise TypeError("support må være en SupportStatus.")
+
+
+class DatasetRegistry:
+    def __init__(self, curated: Iterable[Dataset] = (), discovered: Iterable[Dataset] = ()):
+        self._curated = {dataset.id: dataset for dataset in curated}
+        self._discovered = {}
+        self._by_table = {}
+        for dataset in curated:
+            if dataset.provider and dataset.table_id:
+                self._by_table[_canonical_dataset_key(dataset.provider, dataset.table_id)] = dataset
+        for dataset in discovered:
+            self.register_discovered(dataset)
+
+    def register_discovered(self, dataset: Dataset) -> Dataset:
+        if dataset.support == SupportStatus.SUPPORTED:
+            raise TypeError("Remote metadata kan ikke erklære datasettet som støttet.")
+        key = _canonical_dataset_key(dataset.provider, dataset.table_id)
+        if key is not None and key in self._by_table:
+            return self._curated[self._by_table[key].id]
+        if dataset.id in self._curated:
+            return self._curated[dataset.id]
+        self._discovered[dataset.id] = dataset
+        if key is not None:
+            self._by_table[key] = dataset
+        return dataset
+
+    def effective_datasets(self) -> tuple[Dataset, ...]:
+        datasets = list(self._curated.values())
+        for dataset in self._discovered.values():
+            if dataset.id not in {item.id for item in datasets}:
+                datasets.append(dataset)
+        return tuple(datasets)
+
+    def get(self, dataset_id: str) -> Dataset:
+        if dataset_id in self._curated:
+            return self._curated[dataset_id]
+        if dataset_id in self._discovered:
+            return self._discovered[dataset_id]
+        raise KeyError(f"Ukjent datasett: {dataset_id}")
+
+    def get_by_table(self, provider: str, table_id: str) -> Dataset:
+        key = _canonical_dataset_key(provider, table_id)
+        if key in self._by_table:
+            dataset = self._by_table[key]
+            return dataset
+        raise KeyError(f"Ukjent datasett for {provider}:{table_id}")
+
+    def list(self, *, provider: str | None = None, support: SupportStatus | None = None) -> tuple[Dataset, ...]:
+        items = self.effective_datasets()
+        filtered = [
+            dataset for dataset in items
+            if (provider is None or dataset.provider == provider)
+            and (support is None or dataset.support == support)
+        ]
+        return tuple(filtered)
+
+    def search(self, query: str, *, provider: str | None = None, support: SupportStatus | None = None) -> list[Dataset]:
+        candidates = self.list(provider=provider, support=support)
+        words = set()
+        for raw_word in query.casefold().split():
+            word = raw_word.strip(" ,.?!:;()")
+            if len(word) >= 3:
+                for suffix in ("ene", "en", "et", "a"):
+                    if word.endswith(suffix) and len(word) > len(suffix) + 3:
+                        words.add(word[:-len(suffix)])
+                words.add(word)
+        if not words:
+            return list(candidates)
+
+        scored: list[tuple[int, Dataset]] = []
+        for dataset in candidates:
+            authority = get_source(dataset.provider).authority if dataset.provider in {source.id for source in SOURCES} else ""
+            searchable_parts = [
+                dataset.title,
+                dataset.topic,
+                dataset.description,
+                dataset.provider,
+                dataset.source,
+                authority,
+                dataset.definition,
+                *dataset.dimensions,
+                *dataset.measures,
+                *dataset.aliases,
+                dataset.table_id or "",
+            ]
+            if hasattr(dataset, "keywords"):
+                searchable_parts.extend(dataset.keywords)
+            searchable = " ".join(searchable_parts).casefold()
+            score = sum(1 for word in words if word in searchable)
+            if score:
+                scored.append((score, dataset))
+        scored.sort(key=lambda item: (-item[0], item[1].title.casefold()))
+        return [dataset for _, dataset in scored]
+
+
+DATASET_REGISTRY = DatasetRegistry(curated=(), discovered=())
+DISCOVERED_DATASETS: tuple[Dataset, ...] = ()
+
+
+def _dataset_from_record(record: dict, *, provider: str = "ssb") -> Dataset:
+    table_id = str(
+        record.get("table_id")
+        or record.get("id")
+        or record.get("tableId")
+        or record.get("code")
+        or ""
+    )
+    if not table_id:
+        raise ValueError("Oppdaget SSB-metadata mangler tabell-ID.")
+
+    title = str(
+        record.get("title")
+        or record.get("label")
+        or record.get("name")
+        or f"SSB-tabell {table_id}"
+    )
+    description = str(record.get("description") or record.get("text") or "")
+    topic = str(record.get("topic") or record.get("category") or "ssb")
+    source = str(record.get("source") or "SSB")
+    dimensions = tuple(str(item) for item in (record.get("dimensions") or record.get("variables") or ()))
+    period = str(record.get("period") or record.get("latestPeriod") or record.get("time_period") or "Ukjent")
+    keywords = tuple(str(item) for item in (record.get("keywords") or ()))
+    support_value = record.get("support")
+    support = SupportStatus.DISCOVERED
+    if support_value is not None:
+        support = _normalize_remote_support(support_value)
+    updated_value = (
+        record.get("updated_at")
+        or record.get("updated")
+        or record.get("last_updated")
+        or None
+    )
+    dataset_id = f"{provider}-{table_id}"
+    return Dataset(
+        id=dataset_id,
+        provider=provider,
+        title=title,
+        topic=topic,
+        source=source,
+        geography=(),
+        time_resolution=str(record.get("time_resolution") or record.get("timeResolution") or "unknown"),
+        dimensions=dimensions,
+        unit=str(record.get("unit") or "unknown"),
+        description=description,
+        period=period,
+        measures=tuple(str(item) for item in (record.get("measures") or ())),
+        definition=str(record.get("definition") or description or "Oppdaget fra SSB uten lokalt adapterstøtte."),
+        support=support,
+        table_id=table_id,
+        source_url=str(record.get("source_url") or record.get("url") or f"https://www.ssb.no/statbank/table/{table_id}"),
+        access_url=str(record.get("access_url") or record.get("data_url") or f"https://data.ssb.no/api/pxwebapi/v2/tables/{table_id}/data"),
+        format=str(record.get("format") or "json-stat2"),
+        updated_at=str(updated_value) if updated_value not in (None, "") else None,
+        keywords=keywords,
+    )
+
+
+def _atomic_json_write(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
+            handle.write("\n")
+            tmp = Path(handle.name)
+        os.replace(tmp, path)
+    finally:
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
+
+
+def _ssb_snapshot_path() -> Path:
+    return CACHE_DIR / "metadata" / "ssb-discovery.json"
+
+
+def _format_snapshot_entry(dataset: Dataset) -> dict:
+    return {
+        "id": dataset.id,
+        "provider": dataset.provider,
+        "title": dataset.title,
+        "topic": dataset.topic,
+        "source": dataset.source,
+        "table_id": dataset.table_id,
+        "description": dataset.description,
+        "keywords": list(dataset.keywords if hasattr(dataset, "keywords") else ()),
+        "support": dataset.support.value,
+        "dimensions": list(dataset.dimensions),
+        "period": dataset.period,
+        "source_url": dataset.source_url,
+        "access_url": dataset.access_url,
+        "format": dataset.format,
+        "updated_at": dataset.updated_at,
+        "time_resolution": dataset.time_resolution,
+        "measures": list(dataset.measures),
+        "definition": dataset.definition,
+        "geography": list(dataset.geography),
+        "unit": dataset.unit,
+    }
+
+
+def _load_ssb_snapshot(path: Path | None = None) -> tuple[Dataset, ...]:
+    path = path or _ssb_snapshot_path()
+    if not path.exists():
+        raise FileNotFoundError(f"Fant ingen lokal SSB-katalogsnapshot: {path}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Katalogsnapshoten er korrupt: {path}") from exc
+    if not isinstance(payload, dict):
+        raise TypeError("Katalogsnapshoten er ikke et JSON-objekt.")
+    schema_version = payload.get("schema_version", 1)
+    if schema_version != 1:
+        raise ValueError(f"Ustøttet katalogsnapshotversjon: {schema_version}")
+    records = payload.get("tables") or []
+    if not isinstance(records, list):
+        raise TypeError("Snapshotens tabeller er ikke en liste.")
+    datasets = []
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            raise TypeError(f"Snapshot tabell {index} er ikke et objekt.")
+        try:
+            datasets.append(_dataset_from_record(record, provider="ssb"))
+        except ValueError:
+            continue
+    return tuple(datasets)
+
+
+def _fetch_ssb_metadata_records(client=None, *, max_pages: int = 20, page_size: int = 100) -> tuple[dict, ...]:
+    if client is None:
+        from .providers.norway.ssb import SsbClient
+        client = SsbClient()
+
+    results: list[dict] = []
+    seen_ids: set[str] = set()
+    page = 1
+    while page <= max_pages:
+        response = client.search("")
+        current = response if response else []
+        if not current:
+            break
+        for item in current:
+            if not isinstance(item, dict):
+                continue
+            table_id = str(item.get("id") or item.get("tableId") or item.get("code") or "")
+            if not table_id or table_id in seen_ids:
+                continue
+            seen_ids.add(table_id)
+            results.append(item)
+        if len(current) < page_size:
+            break
+        page += 1
+    return tuple(results)
+
+
+def refresh_ssb_discovery_snapshot(path: Path | None = None, *, client=None) -> tuple[Dataset, ...]:
+    path = path or _ssb_snapshot_path()
+    current_mode = __import__("samfunnsdata.network", fromlist=["get_mode", "NetworkMode"]).get_mode()
+    if current_mode == __import__("samfunnsdata.network", fromlist=["NetworkMode"]).NetworkMode.CACHE_ONLY:
+        if path.exists():
+            return _load_ssb_snapshot(path)
+        raise __import__("samfunnsdata.network", fromlist=["CacheOnlyMiss"]).CacheOnlyMiss(
+            "SSB-datakatalog kan ikke oppdateres i cache-only-modus. Bruk eksisterende lokal snapshot."
+        )
+
+    fetched = _fetch_ssb_metadata_records(client=client)
+    unique_records: list[dict] = []
+    seen_ids: set[str] = set()
+    for record in fetched:
+        table_id = str(record.get("id") or record.get("tableId") or record.get("code") or "")
+        if not table_id or table_id in seen_ids:
+            continue
+        seen_ids.add(table_id)
+        unique_records.append(record)
+    datasets = tuple(_dataset_from_record(record, provider="ssb") for record in unique_records)
+    payload = {
+        "schema_version": 1,
+        "provider": "ssb",
+        "source": "ssb",
+        "fetched_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "tables": [_format_snapshot_entry(dataset) for dataset in datasets],
+    }
+    _atomic_json_write(path, payload)
+    global DISCOVERED_DATASETS
+    DISCOVERED_DATASETS = datasets
+    DATASET_REGISTRY._discovered = {dataset.id: dataset for dataset in datasets}
+    DATASET_REGISTRY._by_table = {
+        _canonical_dataset_key(dataset.provider, dataset.table_id): dataset
+        for dataset in DATASET_REGISTRY.effective_datasets()
+        if dataset.provider and dataset.table_id
+    }
+    return datasets
+
+
+def load_discovered_ssb_snapshot(path: Path | None = None) -> tuple[Dataset, ...]:
+    path = path or _ssb_snapshot_path()
+    datasets = _load_ssb_snapshot(path)
+    global DISCOVERED_DATASETS
+    DISCOVERED_DATASETS = datasets
+    DATASET_REGISTRY._discovered = {dataset.id: dataset for dataset in datasets}
+    DATASET_REGISTRY._by_table = {
+        _canonical_dataset_key(dataset.provider, dataset.table_id): dataset
+        for dataset in DATASET_REGISTRY.effective_datasets()
+        if dataset.provider and dataset.table_id
+    }
+    return datasets
+
+
+DATABASE_REGISTRY_NOT_USED = None
 
 
 def get_source(provider: str) -> Source:
@@ -47,6 +443,7 @@ class Dataset:
     definition: str
     limitations: tuple[str, ...] = ()
     aliases: tuple[str, ...] = ()
+    keywords: tuple[str, ...] = ()
     support: SupportStatus = SupportStatus.PLANNED
     adapter: str | None = None
     interfaces: tuple[str, ...] = ()
@@ -61,7 +458,16 @@ class Dataset:
 
     def __post_init__(self):
         if not isinstance(self.support, SupportStatus):
-            raise TypeError("support må være en SupportStatus.")
+            if not isinstance(self.support, str):
+                raise TypeError("support må være en SupportStatus.")
+            try:
+                support = SupportStatus(self.support)
+            except ValueError as exc:
+                raise TypeError("support må være en SupportStatus.") from exc
+            if support == SupportStatus.SUPPORTED:
+                raise TypeError("support må være en SupportStatus.")
+            object.__setattr__(self, "support", support)
+
         if self.support == SupportStatus.SUPPORTED:
             if not self.adapter or not self.interfaces:
                 raise ValueError("Støttede datasett må angi adapter og grensesnitt.")
@@ -239,8 +645,17 @@ DATASETS = (
 )
 
 
+DATASET_REGISTRY = DatasetRegistry(curated=DATASETS, discovered=DISCOVERED_DATASETS)
+
+
+def rebuild_registry() -> DatasetRegistry:
+    global DATASET_REGISTRY
+    DATASET_REGISTRY = DatasetRegistry(curated=DATASETS, discovered=DISCOVERED_DATASETS)
+    return DATASET_REGISTRY
+
+
 def datasets() -> tuple[Dataset, ...]:
-    return DATASETS
+    return rebuild_registry().effective_datasets()
 
 
 def _search_forms(word: str) -> set[str]:
@@ -259,65 +674,8 @@ def find_datasets(
     provider: str | None = None,
     support: SupportStatus | None = None,
 ) -> list[Dataset]:
-    candidates = [
-        item for item in DATASETS
-        if (provider is None or item.provider == provider)
-        and (support is None or item.support == support)
-    ]
-    words = set()
-
-    for raw_word in query.casefold().split():
-        word = raw_word.strip(" ,.?!:;()")
-
-        if len(word) >= 3:
-            words.update(_search_forms(word))
-
-    if not words:
-        return candidates
-
-    scored = []
-
-    for dataset in candidates:
-        searchable = " ".join(
-            [
-                dataset.title,
-                dataset.topic,
-                dataset.description,
-                dataset.provider,
-                dataset.source,
-                get_source(dataset.provider).authority,
-                dataset.definition,
-                *dataset.dimensions,
-                *dataset.measures,
-                *dataset.aliases,
-            ]
-        ).casefold()
-
-        score = sum(
-            1
-            for word in words
-            if word in searchable
-        )
-
-        if score:
-            scored.append((score, dataset))
-
-    scored.sort(
-        key=lambda item: (
-            -item[0],
-            item[1].title.casefold(),
-        )
-    )
-
-    return [
-        dataset
-        for _, dataset in scored
-    ]
+    return rebuild_registry().search(query, provider=provider, support=support)
 
 
 def get_dataset(dataset_id: str) -> Dataset:
-    for dataset in DATASETS:
-        if dataset.id == dataset_id:
-            return dataset
-
-    raise KeyError(f"Ukjent datasett: {dataset_id}")
+    return rebuild_registry().get(dataset_id)

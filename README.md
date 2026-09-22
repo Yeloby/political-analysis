@@ -14,6 +14,7 @@ spørsmålsformuleringer, diagrammer, CSV-eksport og lokal mellomlagring.
   kommunevalg, innenfor årgangene leverandøren støtter i programmet.
 - NAV: registrerte helt ledige etter kommune og måned.
 - Datasettkatalog med søk og informasjon om kilder, måltall og begrensninger.
+- SSB metadata-discovery: lokalt snapshottert katalogoversikt for oppdagede SSB-tabeller uten å gjøre disse analoge eller kjørbare.
 - FHI Open API: generiske tabellforespørsler og JSON-stat2 til pandas, med
   kategorikoder, etiketter, verdier, status og metadata bevart.
 - FHI legemidler (`lmr`, tabell `825`): ATC-oppslag og kandidatsøk, historikk
@@ -49,9 +50,11 @@ Vis-menyen åpner manuelle befolkningsvalg. Hjelp-menyen inneholder en
 frakoblet brukerveiledning og Om Samfunnsdata.
 
 Katalogen skiller mellom støttet, katalogisert og planlagt, og viser hvilke
-grensesnitt som er implementert. Den er ikke en komplett oversikt over norske
-offentlige data. Se [arkitektur og migreringsplan](docs/architecture.md) for
-videre arbeid med oppdagelse, adaptere og datakvitteringer.
+grensesnitt som er implementert. «Katalogisert» betyr at metadata er oppdaget,
+men at Samfunnsdata ikke kan analysere tabellen uten en egen, lokale og
+eksplisitt støttet adapter. Oppdagede tabeller blir ikke automatisk
+kjørbare. Se [arkitektur og migreringsplan](docs/architecture.md) for videre
+arbeid med oppdagelse, adaptere og datakvitteringer.
 
 ## Datakvittering og personvern
 
@@ -62,6 +65,10 @@ Se [befolkningsresultater](docs/population-results.md).
 
 GUI-spørsmål tolkes lokalt; datautvalg sendes til kildene ved behov. CLI `search`
 sender søketeksten til SSB når programmet er i online-modus og ingen lokal cache
-finner treff. `--cache-only` forbyr alle nettverksforespørsler og tillater kun
-lokal cache. Ingen telemetri er implementert. Cache og eksporter lagres lokalt
-uten kryptering fra programmet. Se [personvern og nettverk](docs/privacy.md).
+finner treff. Katalogoppdatering kan også hente tabellmetadata fra SSB og lagre
+det lokalt som en versjonert snapshot; dette er kun katalogmetadata og ikke
+observasjonsdata. `--cache-only` forbyr alle nettverksforespørsler og tillater kun
+lokal cache; uten en eksisterende snapshot feiler oppdateringen tydelig uten
+silen innlogging eller online-fallback. Ingen telemetri er implementert. Cache og
+eksporter lagres lokalt uten kryptering fra programmet. Se [personvern og
+nettverk](docs/privacy.md).

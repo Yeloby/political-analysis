@@ -83,3 +83,26 @@ def test_parliament_catalog_matches_implemented_adapter():
     assert callable(getattr(importlib.import_module(module), name))
     assert find_datasets("stortingsvalg")[0] == dataset
     assert dataset.provider == "elections"
+
+
+def test_dataset_support_accepts_string_values():
+    dataset = __import__("samfunnsdata.catalog", fromlist=["Dataset", "SupportStatus"]).Dataset(
+        id="ssb-discovered-table",
+        provider="ssb",
+        title="Oppdaget SSB-tabell",
+        topic="demography",
+        source="SSB",
+        geography=("municipality",),
+        time_resolution="year",
+        dimensions=("geography", "year"),
+        unit="persons",
+        description="En oppdaget tabell som ikke er semantisk støttet i applikasjonen.",
+        period="2020–2024",
+        measures=("population",),
+        definition="Oppdaget fra SSB uten at applikasjonen implementerer analyseadapter.",
+        support="discovered",
+    )
+
+    assert dataset.support == __import__("samfunnsdata.catalog", fromlist=["SupportStatus"]).SupportStatus.DISCOVERED
+    assert dataset.queryable is False
+    assert dataset.support_label == "Katalogisert – kan ikke hentes i Samfunnsdata"

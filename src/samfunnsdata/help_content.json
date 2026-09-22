@@ -17,7 +17,7 @@
   {
     "id": "browse",
     "title": "Finn datasett og datakilder",
-    "text": "Data → Bla i datasett søker i den lokale katalogen. Velg en kilde eller støttestatus for å avgrense treff. «Støttet» viser hvilke grensesnitt som finnes; Python/API betyr ikke at analysen finnes i GUI-en. «Katalogisert» betyr at metadata er kjent, men at datasettet ikke kan hentes i programmet. «Planlagt» betyr ikke støttet. Ingen treff betyr ikke at dataene ikke finnes hos en offentlig myndighet. Data → Datakilder viser kildene i den lokale oversikten."
+    "text": "Data → Bla i datasett søker i den lokale katalogen. Velg en kilde eller støttestatus for å avgrense treff. «Støttet» viser hvilke grensesnitt som finnes; Python/API betyr ikke at analysen finnes i GUI-en. «Katalogisert» betyr at metadata er oppdaget hos kilden, men at datasettet ikke kan hentes eller analyseres i Samfunnsdata uten en egen, eksplisitt støttet adapter. «Planlagt» betyr ikke støttet. Oppdaget metadata er kun katalogdata: det kan beskrive tabellen, men det kan ikke registrere seg som støttet eller kjørbart. Ingen treff betyr ikke at dataene ikke finnes hos en offentlig myndighet. Data → Datakilder viser kildene i den lokale oversikten."
   },
   {
     "id": "concepts",

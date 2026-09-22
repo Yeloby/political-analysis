@@ -71,6 +71,12 @@ Referanser til input/output er relative til hver angitt serie.
 Tabell-ID, måltallskode, utvalg og URL-er kommer fra eksisterende adapter/katalog.
 Katalogtittelen «Befolkning» er ikke utgitt for å være en full offisiell tabelltittel.
 
+Milestone F legger til et lokalt katalogregister som kombinerer kuraterte datasett,
+oppdagede SSB-tabeller og støttestatus. Oppdaget metadata er data, ikke kode: det
+kan beskrive tabellen, men det kan ikke self-approve som støttet eller kjørbart.
+Katalogoppdateringer lagres som versjonerte JSON-snapshots i lokal cache og erstatter
+ikke eldre snapshot atomisk dersom oppdateringen feiler.
+
 Kildens JSON-stat-metadata kopieres fra attrs til en uavhengig, uforanderlig
 JSON-snapshot i kontrakten. I kvitteringens wireformat er `provider_metadata` et
 vanlig JSON-objekt. GUI/CLI trenger ikke attrs eller SSB-kolonnenavn for å rekonstruere

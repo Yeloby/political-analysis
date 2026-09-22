@@ -50,10 +50,12 @@ manuell sletting av cachemappen. Dette sletter ikke eksporter, eldre sikkerhetsk
 eller terminalhistorikk. Cachen kan fylles på igjen ved senere forespørsler.
 
 `--cache-only` og GUI-valg for «Kun lokal cache» hindrer alle nettverkskall; de
-forbyr kun lokal cache og kaster en tydelig feil ved cachebom. Dette er en
-nettverksgrense, ikke anonymitetsgaranti. Cachebruk er ikke et løfte om anonymitet
-eller fullstendig frakoblet drift. Avbryt stopper visning av foreldede resultater,
-men et pågående kildekall kan fortsatt fullføres.
+forbyr kun lokal cache og kaster en tydelig feil ved cachebom. Oppdatering av
+SSB-datakatalogen bruker også denne grensen: uten lokal snapshot feiler
+katalogoppdateringen uten at programmet faller tilbake til online-modus. Dette er
+en nettverksgrense, ikke anonymitetsgaranti. Cachebruk er ikke et løfte om
+anonymitet eller fullstendig frakoblet drift. Avbryt stopper visning av
+foreldede resultater, men et pågående kildekall kan fortsatt fullføres.
 
 ## Begrensninger
 
