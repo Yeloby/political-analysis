@@ -1,3 +1,5 @@
+import tempfile
+
 import gi
 import pandas as pd
 
@@ -5,7 +7,13 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf, GLib, Gtk
 
-from .analysis import filter_since, summarize_series
+from .analysis import (
+    align_election_series,
+    filter_since,
+    format_number,
+    observation_value,
+    summarize_series,
+)
 from .charts import election_figure, population_figure
 from .navigation import install_navigation
 from .providers.norway.elections import (
@@ -188,6 +196,19 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         self.source.set_text("")
         install_navigation(self, box, (advanced_label, form))
 
+    def _display_chart(self, fig):
+        import matplotlib.pyplot as plt
+
+        try:
+            with tempfile.NamedTemporaryFile(prefix="samfunnsdata-chart-", suffix=".png") as file:
+                fig.savefig(file.name, dpi=180)
+                # Pixbuf loads the pixels before the temporary file is removed.
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file(file.name)
+            self.chart.set_pixbuf(pixbuf)
+            self.chart.set_visible(True)
+        finally:
+            plt.close(fig)
+
     def on_question(self, button):
         try:
             question = parse_question(
@@ -261,7 +282,7 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
             f"{int(last['year'])}-{int(last['month']):02d}"
         )
 
-        latest_unemployed = int(last["unemployed"])
+        latest_unemployed = observation_value(last, "unemployed")
         latest_percent = last["percent"]
 
         if latest_percent is not None and not pd.isna(
@@ -279,7 +300,7 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
             f"{first_period}–{last_period}"
         )
 
-        latest_text = f"{latest_unemployed:,}".replace(",", " ")
+        latest_text = format_number(latest_unemployed, ",.0f")
 
         self.result.set_markup(
             f"<b>Registrerte helt ledige i "
@@ -322,15 +343,7 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         ax.grid(True, alpha=0.25)
         fig.tight_layout()
 
-        chart_path = "/tmp/samfunnsdata-chart.png"
-        fig.savefig(chart_path, dpi=180)
-        plt.close(fig)
-
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file(
-            chart_path
-        )
-        self.chart.set_pixbuf(pixbuf)
-        self.chart.set_visible(True)
+        self._display_chart(fig)
 
         self.source.set_text(
             "Kilde: NAV · registrerte helt ledige"
@@ -350,28 +363,29 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
                 party_code=question.second_party_code,
                 since=question.since,
             )
+            first_comparison, second_comparison = align_election_series(first_frame, second_frame)
         except Exception as error:  # noqa: BLE001
             self.status.set_text(str(error))
             return
 
         first_name = str(
-            first_frame.iloc[-1]["party_name"]
+            first_comparison.iloc[-1]["party_name"]
         )
         second_name = str(
-            second_frame.iloc[-1]["party_name"]
+            second_comparison.iloc[-1]["party_name"]
         )
 
         first_start = float(
-            first_frame.iloc[0]["percent"]
+            first_comparison.iloc[0]["percent"]
         )
         first_end = float(
-            first_frame.iloc[-1]["percent"]
+            first_comparison.iloc[-1]["percent"]
         )
         second_start = float(
-            second_frame.iloc[0]["percent"]
+            second_comparison.iloc[0]["percent"]
         )
         second_end = float(
-            second_frame.iloc[-1]["percent"]
+            second_comparison.iloc[-1]["percent"]
         )
 
         first_change = first_end - first_start
@@ -385,12 +399,12 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
             return f"{value:+.2f}".replace(".", ",")
 
         first_year = min(
-            int(first_frame.iloc[0]["year"]),
-            int(second_frame.iloc[0]["year"]),
+            int(first_comparison.iloc[0]["year"]),
+            int(second_comparison.iloc[0]["year"]),
         )
         last_year = max(
-            int(first_frame.iloc[-1]["year"]),
-            int(second_frame.iloc[-1]["year"]),
+            int(first_comparison.iloc[-1]["year"]),
+            int(second_comparison.iloc[-1]["year"]),
         )
 
         self.status.set_text(
@@ -410,6 +424,7 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
             f"{pct(second_start)} % → {pct(second_end)} %"
             f"</span>\n"
             f"Endring: {pp(second_change)} prosentpoeng\n\n"
+            "Sammenligningen bruker felles valgår.\n"
             f"Forskjell i {last_year}: "
             f"{pct(abs(latest_difference))} prosentpoeng\n\n"
             f"Metode: Partienes stemmeandeler ved "
@@ -452,15 +467,7 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         ax.grid(True, alpha=0.25)
         fig.tight_layout()
 
-        chart_path = "/tmp/samfunnsdata-chart.png"
-        fig.savefig(chart_path, dpi=180)
-        plt.close(fig)
-
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file(
-            chart_path
-        )
-        self.chart.set_pixbuf(pixbuf)
-        self.chart.set_visible(True)
+        self._display_chart(fig)
 
         self.source.set_text(
             "Kilde: Valgdirektoratet · valgresultat.no"
@@ -480,17 +487,18 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
                 party_code=question.second_party_code,
                 since=question.since,
             )
+            first_comparison, second_comparison = align_election_series(first_frame, second_frame)
         except Exception as error:  # noqa: BLE001
             self.status.set_text(str(error))
             return
 
-        first_name = str(first_frame.iloc[-1]["party_name"])
-        second_name = str(second_frame.iloc[-1]["party_name"])
+        first_name = str(first_comparison.iloc[-1]["party_name"])
+        second_name = str(second_comparison.iloc[-1]["party_name"])
 
-        first_start = float(first_frame.iloc[0]["percent"])
-        first_end = float(first_frame.iloc[-1]["percent"])
-        second_start = float(second_frame.iloc[0]["percent"])
-        second_end = float(second_frame.iloc[-1]["percent"])
+        first_start = float(first_comparison.iloc[0]["percent"])
+        first_end = float(first_comparison.iloc[-1]["percent"])
+        second_start = float(second_comparison.iloc[0]["percent"])
+        second_end = float(second_comparison.iloc[-1]["percent"])
 
         first_change = first_end - first_start
         second_change = second_end - second_start
@@ -503,12 +511,12 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
             return f"{value:+.2f}".replace(".", ",")
 
         first_year = min(
-            int(first_frame.iloc[0]["year"]),
-            int(second_frame.iloc[0]["year"]),
+            int(first_comparison.iloc[0]["year"]),
+            int(second_comparison.iloc[0]["year"]),
         )
         last_year = max(
-            int(first_frame.iloc[-1]["year"]),
-            int(second_frame.iloc[-1]["year"]),
+            int(first_comparison.iloc[-1]["year"]),
+            int(second_comparison.iloc[-1]["year"]),
         )
 
         self.status.set_text(
@@ -528,6 +536,7 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
             f"{pct(second_start)} % → {pct(second_end)} %"
             f"</span>\n"
             f"Endring: {pp(second_change)} prosentpoeng\n\n"
+            "Sammenligningen bruker felles valgår.\n"
             f"Forskjell i {last_year}: "
             f"{pct(abs(latest_difference))} prosentpoeng\n\n"
             f"Metode: Partienes stemmeandeler ved "
@@ -570,21 +579,13 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         ax.grid(True, alpha=0.25)
         fig.tight_layout()
 
-        chart_path = "/tmp/samfunnsdata-chart.png"
-        fig.savefig(chart_path, dpi=180)
-        plt.close(fig)
-
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file(chart_path)
-        self.chart.set_pixbuf(pixbuf)
-        self.chart.set_visible(True)
+        self._display_chart(fig)
 
         self.source.set_text(
             "Kilde: Valgdirektoratet · valgresultat.no"
         )
 
     def on_municipal_election_question(self, question):
-        import matplotlib.pyplot as plt
-
         self.status.set_text("Henter kommunevalgdata …")
 
         try:
@@ -601,9 +602,10 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         last = frame.iloc[-1]
 
         party_name = str(last["party_name"])
-        first_percent = float(first["percent"])
-        last_percent = float(last["percent"])
-        change = last_percent - first_percent
+        first_percent = observation_value(first, "percent")
+        last_percent = observation_value(last, "percent")
+        change = (last_percent - first_percent
+                  if first_percent is not None and last_percent is not None else None)
 
         first_year = int(first["year"])
         last_year = int(last["year"])
@@ -614,13 +616,13 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         )
 
         first_percent_text = (
-            f"{first_percent:.2f}".replace(".", ",")
+            format_number(first_percent, ".2f")
         )
         last_percent_text = (
-            f"{last_percent:.2f}".replace(".", ",")
+            format_number(last_percent, ".2f")
         )
         change_text = (
-            f"{change:+.2f}".replace(".", ",")
+            format_number(change, "+.2f")
         )
 
         self.result.set_text(
@@ -642,15 +644,7 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
             f"{party_name} i {question.municipality}",
         )
 
-        chart_path = "/tmp/samfunnsdata-chart.png"
-        fig.savefig(chart_path, dpi=180)
-        plt.close(fig)
-
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file(
-            chart_path
-        )
-        self.chart.set_pixbuf(pixbuf)
-        self.chart.set_visible(True)
+        self._display_chart(fig)
 
         self.source.set_text(
             "Kilde: Valgdirektoratet · valgresultat.no"
@@ -673,18 +667,19 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         last = frame.iloc[-1]
 
         party_name = str(last["party_name"])
-        first_percent = float(first["percent"])
-        last_percent = float(last["percent"])
-        change = last_percent - first_percent
+        first_percent = observation_value(first, "percent")
+        last_percent = observation_value(last, "percent")
+        change = (last_percent - first_percent
+                  if first_percent is not None and last_percent is not None else None)
 
         first_text = (
-            f"{first_percent:.2f}".replace(".", ",")
+            format_number(first_percent, ".2f")
         )
         last_text = (
-            f"{last_percent:.2f}".replace(".", ",")
+            format_number(last_percent, ".2f")
         )
         change_text = (
-            f"{change:+.2f}".replace(".", ",")
+            format_number(change, "+.2f")
         )
 
         self.status.set_text(
@@ -725,13 +720,7 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         ax.grid(True, alpha=0.25)
         fig.tight_layout()
 
-        chart_path = "/tmp/samfunnsdata-chart.png"
-        fig.savefig(chart_path, dpi=180)
-        plt.close(fig)
-
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file(chart_path)
-        self.chart.set_pixbuf(pixbuf)
-        self.chart.set_visible(True)
+        self._display_chart(fig)
 
         self.source.set_text(
             "Kilde: Valgdirektoratet · valgresultat.no"
@@ -792,12 +781,11 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
             self.status.set_text(str(error))
             return
 
-        first = f"{summary.first_value:,}".replace(",", " ")
-        last = f"{summary.last_value:,}".replace(",", " ")
-        change = f"{summary.change:+,}".replace(",", " ")
+        first = format_number(summary.first_value, ",")
+        last = format_number(summary.last_value, ",")
+        change = format_number(summary.change, "+,")
         percent = (
-            f"{summary.percent_change:+.1f}"
-            .replace(".", ",")
+            format_number(summary.percent_change, "+.1f")
         )
 
         self.status.set_text(
@@ -817,20 +805,16 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
             ) = comparison
 
             compare_first = (
-                f"{compare_summary.first_value:,}"
-                .replace(",", " ")
+                format_number(compare_summary.first_value, ",")
             )
             compare_last = (
-                f"{compare_summary.last_value:,}"
-                .replace(",", " ")
+                format_number(compare_summary.last_value, ",")
             )
             compare_change = (
-                f"{compare_summary.change:+,}"
-                .replace(",", " ")
+                format_number(compare_summary.change, "+,")
             )
             compare_percent = (
-                f"{compare_summary.percent_change:+.1f}"
-                .replace(".", ",")
+                format_number(compare_summary.percent_change, "+.1f")
             )
 
             self.result.set_markup(
@@ -889,15 +873,7 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
             chart_title,
         )
 
-        chart_path = "/tmp/samfunnsdata-chart.png"
-        fig.savefig(chart_path, dpi=180)
-
-        import matplotlib.pyplot as plt
-        plt.close(fig)
-
-        pixbuf = GdkPixbuf.Pixbuf.new_from_file(chart_path)
-        self.chart.set_pixbuf(pixbuf)
-        self.chart.set_visible(True)
+        self._display_chart(fig)
     def on_show_raw(self, button):
         if not self.current_series:
             return
@@ -943,10 +919,10 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
 
                 for _, row in frame.iterrows():
                     year = str(row["Tid_code"])
-                    value = int(row["value"])
-                    value_text = (
-                        f"{value:,}".replace(",", " ")
-                    )
+                    value_text = format_number(observation_value(row), ",.0f")
+                    status = row.get("status")
+                    if pd.notna(status) and status != "":
+                        value_text += f" (status: {status}; kildeverdi: {row['value']})"
                     lines.append(
                         f"{year:<8}{value_text:>10}"
                     )
@@ -970,16 +946,8 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
 
                 for _, row in frame.iterrows():
                     year = int(row["year"])
-                    votes = int(row["votes"])
-                    percent = float(row["percent"])
-
-                    votes_text = (
-                        f"{votes:,}".replace(",", " ")
-                    )
-                    percent_text = (
-                        f"{percent:.2f}"
-                        .replace(".", ",")
-                    )
+                    votes_text = format_number(observation_value(row, "votes"), ",.0f")
+                    percent_text = format_number(observation_value(row, "percent"), ".2f")
 
                     lines.append(
                         f"{year:<8}"
@@ -1111,6 +1079,7 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
                         "Kommune",
                         "År",
                         "Innbyggere",
+                        "status",
                     ]
                     if column in export.columns
                 ]

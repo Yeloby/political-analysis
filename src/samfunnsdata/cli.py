@@ -1,6 +1,12 @@
 import argparse
 
-from .analysis import filter_since, summarize_series
+from .analysis import (
+    filter_since,
+    format_number,
+    observation_status,
+    observation_value,
+    summarize_series,
+)
 from .charts import population_chart
 from .providers.norway.ssb import SsbClient, municipality_population
 
@@ -90,12 +96,12 @@ def main():
         print()
         print(
             f"{municipality.name}: "
-            f"{first_value:,} → {last_value:,} "
+            f"{format_number(first_value)} → {format_number(last_value)} "
             f"({first_year}–{last_year})"
             .replace(",", " ")
         )
-        change_text = f"{change:+,}".replace(",", " ")
-        percent_text = f"{percent_change:+.1f}".replace(".", ",")
+        change_text = format_number(change, "+,")
+        percent_text = format_number(percent_change, "+.1f")
 
         print(
             f"Endring: {change_text} personer "
@@ -108,10 +114,12 @@ def main():
 
         for _, row in frame.iterrows():
             year = row.get("Tid", row.get("Tid_code", ""))
-            value = row["value"]
-
-            if value is not None:
-                print(f"{year}: {int(value):,}".replace(",", " "))
+            value = observation_value(row)
+            status = observation_status(row)
+            text = format_number(value, ",.0f")
+            if status is not None:
+                text += f" (status: {status}; kildeverdi: {row['value']})"
+            print(f"{year}: {text}")
 
         print()
         print("Kilde: Statistisk sentralbyrå")
@@ -210,11 +218,11 @@ def main():
             change,
             percent_change,
         ) in results:
-            first_text = f"{first_value:,}".replace(",", " ")
-            last_text = f"{last_value:,}".replace(",", " ")
-            change_text = f"{change:+,}".replace(",", " ")
+            first_text = format_number(first_value, ",")
+            last_text = format_number(last_value, ",")
+            change_text = format_number(change, "+,")
             percent_text = (
-                f"{percent_change:+.1f}".replace(".", ",")
+                format_number(percent_change, "+.1f")
             )
 
             print()

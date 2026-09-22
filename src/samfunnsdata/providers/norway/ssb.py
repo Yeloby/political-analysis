@@ -1,4 +1,6 @@
+from copy import deepcopy
 from dataclasses import dataclass
+from math import prod
 
 import httpx
 import pandas as pd
@@ -209,6 +211,20 @@ def jsonstat_to_frame(data):
     dimensions = data["id"]
     sizes = data["size"]
     values = data["value"]
+    count = prod(sizes)
+    status = data.get("status")
+    if status is None or isinstance(status, str):
+        statuses = [status] * count
+    elif isinstance(status, list):
+        if len(status) != count:
+            raise ValueError("JSON-stat status length does not match dataset size")
+        statuses = status
+    elif isinstance(status, dict):
+        if any(not key.isdigit() or str(int(key)) != key or int(key) >= count for key in status):
+            raise ValueError("JSON-stat status index outside dataset size")
+        statuses = [status.get(str(i)) for i in range(count)]
+    else:
+        raise TypeError("Unsupported JSON-stat status representation")
 
     codes = {}
     labels = {}
@@ -243,7 +259,7 @@ def jsonstat_to_frame(data):
                 row[dimension] = labels[dimension].get(code, code)
                 row[f"{dimension}_code"] = code
 
-            row["value"] = values[flat_index]
+            row["value"] = values.get(str(flat_index)) if isinstance(values, dict) else values[flat_index]
             rows.append(row)
             return
 
@@ -252,7 +268,12 @@ def jsonstat_to_frame(data):
 
     walk(0, [])
 
-    return pd.DataFrame(rows)
+    frame = pd.DataFrame(rows)
+    frame["status"] = pd.Series(statuses, dtype=object)
+    frame.attrs["jsonstat_metadata"] = deepcopy(
+        {key: value for key, value in data.items() if key not in {"value", "status"}}
+    )
+    return frame
 
 
 def municipality_population(name: str):

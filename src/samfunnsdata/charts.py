@@ -2,13 +2,15 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
+from .analysis import observation_value
+
 
 def population_figure(series, title: str):
     fig, ax = plt.subplots(figsize=(12, 6))
 
     for label, frame in series:
         years = frame["Tid_code"].astype(int)
-        values = frame["value"].astype(float)
+        values = [observation_value(row) for _, row in frame.iterrows()]
 
         ax.plot(
             years,
@@ -48,7 +50,7 @@ def election_figure(frame, title: str):
     fig, ax = plt.subplots(figsize=(12, 6))
 
     years = frame["year"].astype(int)
-    values = frame["percent"].astype(float)
+    values = [observation_value(row, "percent") for _, row in frame.iterrows()]
 
     ax.plot(
         years,

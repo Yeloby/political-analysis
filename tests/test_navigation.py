@@ -97,3 +97,111 @@ def test_help_about_catalog_render(window):
     search.set_text("zzzz-no-match")
     search.emit("search-changed")
     assert "Ingen treff" in buffer.get_text(*buffer.get_bounds(), True)
+
+
+@pytest.mark.parametrize("provider,handler,years", [
+    ("storting_party_history", "on_election_comparison", [2017, 2021, 2025]),
+    ("municipality_party_history", "on_municipal_election_comparison", [2015, 2019, 2023]),
+])
+@pytest.mark.parametrize("case", ["same", "different", "missing", "no_common"])
+def test_election_comparison_periods(window, monkeypatch, provider, handler, years, case):
+    from types import SimpleNamespace
+
+    import pandas as pd
+    from matplotlib.figure import Figure
+
+    from samfunnsdata import gui
+
+    first = pd.DataFrame({"party_name": ["A"] * 3, "year": years, "percent": [10, 20, 30]})
+    second_years = years[:-1] if case == "different" else years
+    if case == "no_common":
+        second_years = [years[0] - 4]
+    second = pd.DataFrame({"party_name": ["B"] * len(second_years), "year": second_years,
+                           "percent": [5] * len(second_years)})
+    if case == "missing":
+        second.loc[len(second) - 1, "percent"] = float("nan")
+    monkeypatch.setattr(gui, provider, lambda **kw: first if kw["party_code"] == "A" else second)
+    monkeypatch.setattr(Figure, "savefig", lambda *_a, **_kw: None)
+    pixbuf = gui.GdkPixbuf.Pixbuf.new(gui.GdkPixbuf.Colorspace.RGB, False, 8, 1, 1)
+    monkeypatch.setattr(gui.GdkPixbuf.Pixbuf, "new_from_file", lambda *_: pixbuf)
+    question = SimpleNamespace(municipality="Test", first_party_code="A", second_party_code="B", since=None)
+    getattr(window, handler)(question)
+    if case in {"missing", "no_common"}:
+        assert "kan ikke sammenlignes" in window.status.get_text().lower()
+        assert "Forskjell i" not in window.result.get_text()
+    else:
+        expected_year = years[-2] if case == "different" else years[-1]
+        expected_difference = "15,00" if case == "different" else "25,00"
+        assert f"Forskjell i {expected_year}: {expected_difference}" in window.result.get_text()
+        assert "felles valgår" in window.result.get_text().lower()
+
+
+@pytest.mark.parametrize("values", [[0, 5], [0, 0], [None, 5], [5, None]])
+def test_population_gui_missing_endpoints(window, monkeypatch, values):
+    from types import SimpleNamespace
+
+    import matplotlib.pyplot as plt
+    import pandas as pd
+
+    from samfunnsdata import gui
+
+    frame = pd.DataFrame({"Tid_code": ["2024", "2025"], "value": values})
+    monkeypatch.setattr(gui, "municipality_population", lambda _: (SimpleNamespace(name="Test"), frame))
+    monkeypatch.setattr(window, "_display_chart", plt.close)
+    window.place.set_text("Test")
+    window.on_analyze(None)
+    assert "2025" in window.status.get_text()
+    assert "ikke beregnbart" in window.result.get_text()
+    window.on_show_raw(None)
+
+
+def test_chart_temp_files_unique_cleaned_and_pixels_loaded(window, monkeypatch):
+    from pathlib import Path
+
+    import matplotlib.pyplot as plt
+
+    seen = []
+    for _ in range(3):
+        fig, ax = plt.subplots(figsize=(1, 1))
+        ax.plot([0, 1])
+        save = fig.savefig
+
+        def capture(path, save=save, **kwargs):
+            seen.append(Path(path))
+            assert Path(path).is_file()
+            save(path, **kwargs)
+        monkeypatch.setattr(fig, "savefig", capture)
+        window._display_chart(fig)
+        assert window.chart.get_paintable() is not None
+        assert not seen[-1].exists()
+        assert not plt.fignum_exists(fig.number)
+    assert len(set(seen)) == 3
+    fig = plt.figure()
+
+    def fail(path, **_kwargs):
+        seen.append(Path(path))
+        raise OSError("Synthetic render failure")
+    monkeypatch.setattr(fig, "savefig", fail)
+    with pytest.raises(OSError):
+        window._display_chart(fig)
+    assert not seen[-1].exists()
+    assert not plt.fignum_exists(fig.number)
+
+
+def test_population_export_preserves_status_and_null(window, tmp_path):
+    import pandas as pd
+    from gi.repository import Gio
+
+    raw = pd.DataFrame({"Tid_code": ["2024", "2025"], "value": [0, None], "status": ["", ":"]})
+    window.current_kind = "population"
+    window.current_series = [("Test", raw)]
+    path = tmp_path / "export.csv"
+
+    class Dialog:
+        def save_finish(self, _result):
+            return Gio.File.new_for_path(str(path))
+    window.on_export_finished(Dialog(), None)
+    output = pd.read_csv(path)
+    assert output["Innbyggere"].iloc[0] == 0
+    assert pd.isna(output["Innbyggere"].iloc[1])
+    assert output["status"].iloc[1] == ":"

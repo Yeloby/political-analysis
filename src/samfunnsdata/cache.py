@@ -1,5 +1,7 @@
 import hashlib
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -21,14 +23,20 @@ class JsonCache:
         path = self.root / self._key(namespace, payload)
         if not path.exists():
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return None
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # Treat invalid bytes as a cache miss; the provider replaces them
+            # atomically after a successful fetch. Do not unlink a concurrent
+            # writer's valid replacement or accumulate quarantine files.
+            return None
 
     def set(self, namespace: str, payload: Any, value: Any):
         path = self.root / self._key(namespace, payload)
-        path.write_text(
-            json.dumps(value, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        encoded = json.dumps(value, ensure_ascii=False, indent=2).encode("utf-8")
+        _atomic_write(path, encoded)
         return path
 
 
@@ -80,3 +88,19 @@ class FileCache:
         path = self.path(namespace, payload, suffix)
         path.write_bytes(data)
         return path
+
+
+
+def _atomic_write(path: Path, data: bytes) -> None:
+    """Publish complete JSON bytes on the same filesystem; retain old on failure."""
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".cache-", delete=False) as file:
+            temporary = Path(file.name)
+            file.write(data)
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
