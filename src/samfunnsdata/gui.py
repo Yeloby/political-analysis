@@ -7,6 +7,7 @@ from gi.repository import GdkPixbuf, GLib, Gtk
 
 from .analysis import filter_since, summarize_series
 from .charts import election_figure, population_figure
+from .navigation import install_navigation
 from .providers.norway.elections import (
     municipality_party_history,
     storting_party_history,
@@ -184,6 +185,8 @@ class SamfunnsdataWindow(Gtk.ApplicationWindow):
         )
         self.source.set_xalign(0)
         box.append(self.source)
+        self.source.set_text("")
+        install_navigation(self, box, (advanced_label, form))
 
     def on_question(self, button):
         try:

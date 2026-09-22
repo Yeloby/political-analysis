@@ -39,3 +39,15 @@ Installer prosjektet og skrivebordsintegrasjonen med:
 Kommandolinjeverktøyet heter `samfunnsdata`. Se tilgjengelige kommandoer med
 `samfunnsdata --help`. Det grafiske grensesnittet startes med
 `samfunnsdata-gui` eller fra programmenyen.
+
+## Navigasjon og dokumentasjon
+
+Fil-menyen gir ny analyse og CSV-eksport. Data-menyen viser den lokale
+katalogen, datakilder og rådata/kildeinformasjon for analyseresultatet.
+Vis-menyen åpner manuelle befolkningsvalg. Hjelp-menyen inneholder en
+frakoblet brukerveiledning og Om Samfunnsdata.
+
+Katalogen skiller mellom støttet, katalogisert og planlagt, og viser hvilke
+grensesnitt som er implementert. Den er ikke en komplett oversikt over norske
+offentlige data. Se [arkitektur og migreringsplan](docs/architecture.md) for
+videre arbeid med oppdagelse, adaptere og datakvitteringer.
