@@ -91,8 +91,8 @@ def find_concepts(text: str) -> tuple[str, ...]:
 
 
 __all__ = [
-    "Concept",
     "CONCEPTS",
+    "Concept",
     "find_concepts",
     "normalize_norwegian_text",
 ]

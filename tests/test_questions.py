@@ -1,10 +1,10 @@
 import pytest
 
 from samfunnsdata.concepts import normalize_norwegian_text
+from samfunnsdata.query_plan import plan_from_population_question, validate_query_plan
 from samfunnsdata.questions import (
     parse_population_question,
 )
-from samfunnsdata.query_plan import plan_from_population_question, validate_query_plan
 
 
 def test_single_population_question():
