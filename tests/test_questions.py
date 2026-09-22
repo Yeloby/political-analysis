@@ -1,8 +1,10 @@
 import pytest
 
+from samfunnsdata.concepts import normalize_norwegian_text
 from samfunnsdata.questions import (
     parse_population_question,
 )
+from samfunnsdata.query_plan import plan_from_population_question, validate_query_plan
 
 
 def test_single_population_question():
@@ -45,6 +47,41 @@ def test_simple_comparison_question():
     assert question.place == "Trondheim"
     assert question.compare_place == "Tromsø"
     assert question.since == 1990
+
+
+def test_normalization_preserves_norwegian_letters_and_spacing():
+    normalized = normalize_norwegian_text("  Folketallet   i  Trondheim  æøå!  ")
+    assert normalized == "Folketallet i Trondheim æøå!"
+
+
+def test_population_synonyms_resolve_equivalently():
+    variants = [
+        "Befolkningen i Trondheim i 2024",
+        "Folketallet i Trondheim i 2024",
+        "Hvor mange innbyggere hadde Trondheim i 2024?",
+        "Antall innbyggere i Trondheim i 2024",
+    ]
+
+    parsed = [parse_population_question(value) for value in variants]
+    for question in parsed[1:]:
+        assert question.place == parsed[0].place
+        assert question.compare_place is None
+        assert question.since == parsed[0].since
+
+
+def test_population_language_planning_is_zero_network(monkeypatch):
+    def fail_network(*args, **kwargs):
+        raise AssertionError("network.request() was called during language parsing")
+
+    monkeypatch.setattr("samfunnsdata.network.request", fail_network)
+
+    question = parse_population_question("Folketallet i Trondheim i 2024")
+    plan = plan_from_population_question(question)
+    validate_query_plan(plan)
+
+    assert plan.dataset_id == "ssb-07459-population"
+    assert plan.filters["municipality"] == "5001"
+    assert plan.filters["year"] == 2024
 
 
 def test_unknown_question():

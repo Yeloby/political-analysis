@@ -1,6 +1,8 @@
 import re
 from dataclasses import dataclass
 
+from .concepts import find_concepts, normalize_norwegian_text
+
 
 @dataclass(frozen=True)
 class PopulationQuestion:
@@ -10,7 +12,7 @@ class PopulationQuestion:
 
 
 def parse_population_question(text: str) -> PopulationQuestion:
-    text = " ".join(text.strip().split())
+    text = normalize_norwegian_text(text)
 
     if not text:
         raise ValueError("Skriv inn et spørsmål.")
@@ -28,6 +30,16 @@ def parse_population_question(text: str) -> PopulationQuestion:
         text,
         flags=re.IGNORECASE,
     ).strip(" .?")
+
+    if not cleaned:
+        raise ValueError("Jeg trenger et kommunenavn.")
+
+    comparison_markers = ("sammenlign", "sammenligne", "sammenlikn", "sammenlikne", "mot", "versus")
+    if "population" not in find_concepts(cleaned) and not any(marker in cleaned.casefold() for marker in comparison_markers):
+        if any(term in cleaned.casefold() for term in ("befolkning", "folketall", "innbyggere")):
+            pass
+        else:
+            raise ValueError("Jeg finner ikke hvilket tema du spør om.")
 
     compare_patterns = [
         (
@@ -50,18 +62,28 @@ def parse_population_question(text: str) -> PopulationQuestion:
                 since=since,
             )
 
+    population_lead_terms = (
+        "befolkning",
+        "folketall",
+        "innbyggere",
+        "antall innbyggere",
+    )
     single_patterns = [
         (
-            r"^vis\s+(?:befolkningen|befolkning)"
-            r"(?:sutviklingen)?\s+i\s+(.+)$"
+            r"^vis\s+(?:befolkningen|befolkning|folketallet|folketall|innbyggere|antall innbyggere)"
+            r"(?:utviklingen)?\s+i\s+(.+)$"
         ),
         (
-            r"^hvordan\s+har\s+(?:befolkningen|befolkning)"
-            r"(?:sutviklingen)?\s+i\s+(.+?)\s+utviklet\s+seg$"
+            r"^hvordan\s+har\s+(?:befolkningen|befolkning|folketallet|folketall|innbyggere|antall innbyggere)"
+            r"(?:utviklingen)?\s+i\s+(.+?)\s+utviklet\s+seg$"
         ),
         (
-            r"^(?:befolkningen|befolkning)"
-            r"(?:sutviklingen)?\s+i\s+(.+)$"
+            r"^(?:befolkningen|befolkning|folketallet|folketall|innbyggere|antall innbyggere)"
+            r"(?:utviklingen)?\s+i\s+(.+)$"
+        ),
+        (
+            r"^(?:hvor\s+mange\s+innbyggere|hvor\s+mange\s+innbyggertall|antall\s+innbyggere|antall\s+innbyggertall)"
+            r"(?:\s+hadde|\s+har|\s+er|\s+finnes|.*?\s+i)?\s+(.+)$"
         ),
     ]
 
@@ -72,15 +94,26 @@ def parse_population_question(text: str) -> PopulationQuestion:
             flags=re.IGNORECASE,
         )
         if match:
+            candidate = next(
+                (
+                    group
+                    for group in (match.group(index) for index in range(1, len(match.groups()) + 1))
+                    if group and group.strip()
+                ),
+                "",
+            )
+            if not candidate:
+                raise ValueError("Jeg trenger et kommunenavn.")
             return PopulationQuestion(
-                place=_clean_place(match.group(1)),
+                place=_clean_place(candidate),
                 since=since,
             )
 
+    if any(term in cleaned.casefold() for term in population_lead_terms):
+        raise ValueError("Jeg forstår spørsmålet, men jeg trenger et kommunenavn.")
+
     raise ValueError(
-        "Jeg forstår foreløpig befolkningsspørsmål som "
-        "«Vis befolkningen i Trondheim siden 2000» eller "
-        "«Sammenlign Trondheim og Bergen siden 2000»."
+        "Jeg finner ikke hvilket tema du spør om."
     )
 
 
