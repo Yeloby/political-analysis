@@ -16,14 +16,14 @@ def parse_population_question(text: str) -> PopulationQuestion:
         raise ValueError("Skriv inn et spørsmål.")
 
     year_match = re.search(
-        r"\b(?:siden|fra)\s+(\d{4})\b",
+        r"\b(?:siden|fra|i)\s+(\d{4})\b",
         text,
         flags=re.IGNORECASE,
     )
     since = int(year_match.group(1)) if year_match else None
 
     cleaned = re.sub(
-        r"\b(?:siden|fra)\s+\d{4}\b",
+        r"\b(?:siden|fra|i)\s+\d{4}\b",
         "",
         text,
         flags=re.IGNORECASE,

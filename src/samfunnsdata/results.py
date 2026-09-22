@@ -108,6 +108,7 @@ class DataReceipt:
     warnings: tuple[str, ...] = ()
     schema_version: str = "2"
     adapter_version: str = "ssb-population/1"
+    query_plan_hash: str | None = None
 
     def __post_init__(self):
         if self.schema_version not in {"1", "2"}:

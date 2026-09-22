@@ -10,6 +10,7 @@ from .analysis import filter_since, observation_value, summarize_series
 from .catalog import get_dataset, get_source
 from .help import application_version
 from .providers.norway.ssb import municipality_population
+from .questions import PopulationQuestion, parse_population_question
 from .results import (
     AnalysisResult,
     DataReceipt,
@@ -21,6 +22,12 @@ from .results import (
     Source,
     Transformation,
 )
+
+__all__ = [
+    "PopulationQuestion",
+    "analyze_population",
+    "parse_population_question",
+]
 
 
 def _scalar(value):
